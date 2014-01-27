@@ -2,6 +2,7 @@
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/Support/InstIterator.h"
 
 using namespace llvm;
 
@@ -11,9 +12,11 @@ namespace {
     Bandage() : ModulePass(ID) {}
 
     virtual bool runOnModule(Module &M) {
-	  for(auto I = M.begin(), E = M.end(); I != E; ++I){
-	    Function *F = I;
-	  	errs() << F->getName() << "\n";
+	  for(auto IFunc = M.begin(), EFunc = M.end(); IFunc != EFunc; ++IFunc){
+	    Function *F = IFunc;
+
+		for(auto IInst = inst_begin(F), EInst = inst_end(F); IInst != EInst; ++IInst)
+			errs() << *IInst << "\n";
 	  }
 
       return false;
