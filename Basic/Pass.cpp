@@ -1,4 +1,5 @@
 #include "llvm/Pass.h"
+#include "llvm/IR/Instructions.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Support/raw_ostream.h"
@@ -15,8 +16,16 @@ namespace {
 	  for(auto IFunc = M.begin(), EFunc = M.end(); IFunc != EFunc; ++IFunc){
 	    Function *F = IFunc;
 
-		for(auto IInst = inst_begin(F), EInst = inst_end(F); IInst != EInst; ++IInst)
-			errs() << *IInst << "\n";
+		for(auto IInst = inst_begin(F), EInst = inst_end(F); IInst != EInst; ++IInst){
+		  //Instruction *I = &*IInst;
+          if(GetElementPtrInst *I = dyn_cast<GetElementPtrInst>(&*IInst)){
+		    errs() << *I << "\n";
+		  }
+
+		  if(AllocaInst *I = dyn_cast<AllocaInst>(&*IInst)){
+		  	errs() << *I << "\n";
+		  }
+		}
 	  }
 
       return false;
