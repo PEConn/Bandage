@@ -1,5 +1,7 @@
 cmake_minimum_required(VERSION 2.8)
 
+set(CMAKE_CXX_FLAGS "-std=c++0x")
+
 # A convenience variable:
 set(LLVM_ROOT "../llvm_install" CACHE PATH "Root of LLVM install.")
 
@@ -25,5 +27,3 @@ set(LLVM_LIBRARY_OUTPUT_INTDIR ".")
 include(AddLLVM)
 
 add_subdirectory(Basic)
-
-set(CMAKE_CXX_FLAGS "-std=c++11")
