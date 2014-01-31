@@ -3,6 +3,18 @@
 #include "llvm/IR/Module.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/InstIterator.h"
+#include "llvm/IR/DataLayout.h"
+
+unsigned int GetNumElementsInArray(AllocaInst * ArrayAlloc){
+    Type *ArrayType = ArrayAlloc->getAllocatedType();
+    return ArrayType->getVectorNumElements();
+}
+
+unsigned int GetArrayElementSizeInBits(AllocaInst *ArrayAlloc, DataLayout *DL){
+    Type *ArrayType = ArrayAlloc->getAllocatedType();
+    Type *ElementType = ArrayType->getVectorElementType();
+    return DL->getTypeAllocSizeInBits(ElementType);
+}
 
 void PrintIrWithHighlight(Module &M, std::set<Instruction *> H1){
   PrintIrWithHighlight(M, H1, std::set<Instruction *>(), 

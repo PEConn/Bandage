@@ -21,4 +21,7 @@ void PrintIrWithHighlight(Module &M, std::set<Instruction *> H1,
     std::set<Instruction *> H2, std::set<Instruction *> H3,
     std::set<Instruction *> H4);
 
+unsigned int GetNumElementsInArray(AllocaInst *);
+unsigned int GetArrayElementSizeInBits(AllocaInst *, DataLayout *);
+
 #endif
