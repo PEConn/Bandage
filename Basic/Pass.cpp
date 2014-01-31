@@ -6,6 +6,7 @@
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DataLayout.h"
+#include "llvm/IR/IRBuilder.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/InstIterator.h"
 
@@ -19,19 +20,32 @@ struct Bandage : public ModulePass{
   Bandage() : ModulePass(ID) {}
 
   virtual bool runOnModule(Module &M) {
+    DL = new DataLayout(&M);
+    Print = M.getFunction("printf");
+
     std::set<Instruction *> ArrayAllocs = CollectArrayAllocs(M);
     std::set<Instruction *> GetElementPtrs = CollectGetElementPtrs(M);
 
     //PrintIrWithHighlight(M, ArrayAllocs, GetElementPtrs);
-    TransformArrayAllocs(ArrayAllocs);
+    //DisplayArrayInformation(ArrayAllocs);
+    //DisplayGepInformation(GetElementPtrs);
+    ModifyGeps(GetElementPtrs);
+    ModifyArrayAllocs(ArrayAllocs);
 
     return true;
   }
 private:
+  DataLayout *DL = NULL;
+  Function *Print = NULL;
+
   std::set<Instruction *> CollectArrayAllocs(Module &M);
   std::set<Instruction *> CollectGetElementPtrs(Module &M);
 
-  void TransformArrayAllocs(std::set<Instruction *> ArrayAllocs);
+  void DisplayArrayInformation(std::set<Instruction *> ArrayAllocs);
+  void DisplayGepInformation(std::set<Instruction *> GetElementPtrs);
+
+  void ModifyGeps(std::set<Instruction *> GetElementPtrs);
+  void ModifyArrayAllocs(std::set<Instruction *> ArrayAllocs);
 };
 }
 
@@ -66,21 +80,59 @@ std::set<Instruction *> Bandage::CollectGetElementPtrs(Module &M){
   return GetElementPtrs;
 }
 
-void Bandage::TransformArrayAllocs(std::set<Instruction *> ArrayAllocs){
+void Bandage::DisplayArrayInformation(std::set<Instruction *> ArrayAllocs){
   for(auto I: ArrayAllocs){
     auto ArrayAlloc = cast<AllocaInst>(I);
 
     errs() << "Instruction:\t" << *ArrayAlloc << "\n";
     errs() << "Array Name:\t\t" << ArrayAlloc->getName() << "\n";
+    //errs() << "No of Elements:\t\t" << (cast<ConstantInt>(ArrayAlloc->getArraySize()))->getSExtValue() << "\n";
 
     Type *ArrayType = ArrayAlloc->getAllocatedType();
     errs() << "No of Elements:\t\t" << ArrayType->getVectorNumElements() << "\n";
     Type *ElementType = ArrayType->getVectorElementType();
-    errs() << "Element Size(p):\t" << ElementType->getPrimitiveSizeInBits() << "\n";
-    errs() << "Element Size(s):\t" << ElementType->getScalarSizeInBits() << "\n";
-    DataLayout DL;
-    errs() << "Element Size(d):\t" << DL.getTypeSizeInBits(ElementType) << "\n";
+    //errs() << "Element Size(p):\t" << ElementType->getPrimitiveSizeInBits() << "\n";
+    //errs() << "Element Size(s):\t" << ElementType->getScalarSizeInBits() << "\n";
+
+    errs() << "Element Size(d):\t" << DL->getTypeAllocSize(ElementType) << "\n";
     
+  }
+}
+
+void Bandage::DisplayGepInformation(std::set<Instruction *> GetElementPtrs){
+  for(auto I: GetElementPtrs){
+    auto Gep = cast<GetElementPtrInst>(I);
+    errs() << "Instruction:\t" << *Gep << "\n";
+  }
+}
+
+void Bandage::ModifyArrayAllocs(std::set<Instruction *> ArrayAllocs){
+  for(auto I: ArrayAllocs){
+    auto ArrayAlloc = cast<AllocaInst>(I);
+    errs() << "Instruction:\t" << *ArrayAlloc << "\n";
+
+    BasicBlock::iterator iter = ArrayAlloc;
+    iter++;
+    IRBuilder<> B(iter);
+
+    Value *PrintString = B.CreateGlobalStringPtr(StringRef(blue + "Arr: %p\n" + reset), 
+        "PrintString");
+    B.CreateCall2(Print, PrintString, ArrayAlloc, "DebugPrint"); 
+  }
+}
+
+void Bandage::ModifyGeps(std::set<Instruction *> GetElementPtrs){
+  for(auto I: GetElementPtrs){
+    auto Gep = cast<GetElementPtrInst>(I);
+    errs() << "Instruction:\t" << *Gep << "\n";
+
+    BasicBlock::iterator iter = Gep;
+    iter++;
+    IRBuilder<> B(iter);
+
+    Value *PrintString = B.CreateGlobalStringPtr(StringRef(blue + "GEP: %p\n" + reset), 
+        "PrintString");
+    B.CreateCall2(Print, PrintString, Gep, "DebugPrint"); 
   }
 }
 
