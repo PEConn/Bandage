@@ -49,6 +49,8 @@ private:
   void ModifyArrayAllocs(std::set<Instruction *> ArrayAllocs);
 
   std::vector<Value *> GetIndices(int val, LLVMContext& C);
+  Value* Str(IRBuilder<> B, std::string str);
+  void AddPrint(IRBuilder<> B, std::string str, Value *v);
 };
 }
 
@@ -112,7 +114,8 @@ void Bandage::ModifyArrayAllocs(std::set<Instruction *> ArrayAllocs){
     iter++;
     IRBuilder<> B(iter);
 
-    Type *ArrayType = ArrayAlloc->getAllocatedType();
+    //Type *ArrayType = ArrayAlloc->getAllocatedType();
+    Type *ArrayType = ArrayAlloc->getType();
     Type *IntegerType = IntegerType::getInt32Ty(ArrayAlloc->getContext());
 
     // Construct the type for the fat pointer
@@ -134,43 +137,76 @@ void Bandage::ModifyArrayAllocs(std::set<Instruction *> ArrayAllocs){
     Value *FatPointerBase = B.CreateGEP(FatPointer, BaseIdx); 
     Value *FatPointerLength = B.CreateGEP(FatPointer, LengthIdx); 
 
-    Value *Address = B.CreateLoad(ArrayAlloc);
+    //Value *Address = B.CreateLoad(ArrayAlloc);
+    Value *Address = ArrayAlloc;
     B.CreateStore(Address, FatPointerValue);
     B.CreateStore(Address, FatPointerBase);
 
     Constant *ArrayLength = ConstantInt::get(IntegerType, 
-        GetNumElementsInArray(ArrayAlloc)); 
-    B.CreateStore(ArrayLength, FatPointerLength);
+        GetNumElementsInArray(ArrayAlloc) * GetArrayElementSizeInBits(ArrayAlloc, DL)/8); 
 
+    B.CreateStore(ArrayLength, FatPointerLength);
   }
 }
 
 void Bandage::ModifyGeps(std::set<Instruction *> GetElementPtrs){
   for(auto I: GetElementPtrs){
     auto Gep = cast<GetElementPtrInst>(I);
-
     IRBuilder<> B(Gep);
+    //errs() << *Gep << "\n";
+
     Value* FatPointer = Gep->getPointerOperand(); 
+    Value* RawPointer = B.CreateLoad(
+        B.CreateGEP(FatPointer, GetIndices(0, Gep->getContext())));
 
-    Value* RawPointer = B.CreateInBoundsGEP(FatPointer, GetIndices(0, Gep->getContext())); 
-
-    // Get the access indices
     std::vector<Value *> IdxList;
     for(auto Idx = Gep->idx_begin(), EIdx = Gep->idx_end(); Idx != EIdx; ++Idx)
       IdxList.push_back(*Idx); 
 
-    Value *NewGep = B.CreateInBoundsGEP(RawPointer, IdxList);
+    Instruction *NewGep = GetElementPtrInst::Create(RawPointer, IdxList);
 
     BasicBlock::iterator iter(Gep);
-    ReplaceInstWithInst(Gep->getParent()->getInstList(), iter, cast<Instruction>(NewGep));
+    ReplaceInstWithInst(Gep->getParent()->getInstList(), iter, NewGep);
+
+    // Now add checking after the Gep Instruction
+    iter = BasicBlock::iterator(NewGep);
+    iter++;
+    B.SetInsertPoint(iter);
+
+    Value *Base = B.CreateLoad(B.CreateInBoundsGEP(FatPointer, 
+          GetIndices(1, Gep->getContext())));
+    Value *Length = B.CreateLoad(B.CreateInBoundsGEP(FatPointer, 
+          GetIndices(2, Gep->getContext())));
+
+    Value *Limit = B.CreateAdd(B.CreatePointerCast(Base, Length->getType()), Length);
+
+    Value *InLowerBound = B.CreateICmpUGE(
+        B.CreatePointerCast(NewGep, Length->getType()),
+        B.CreatePointerCast(Base, Limit->getType()) 
+        );
+    Value *InHigherBound = B.CreateICmpULT(
+        B.CreatePointerCast(NewGep, Length->getType()),
+        Limit
+        );
+        
+    Value *InBounds = B.CreateAnd(InLowerBound, InHigherBound);
+    AddPrint(B, "Valid: %x", InBounds);
   }
 }
 
 std::vector<Value *> Bandage::GetIndices(int val, LLVMContext& C){
-    std::vector<Value *> Idxs;
-    Idxs.push_back(ConstantInt::get(IntegerType::getInt32Ty(C), 0));
-    Idxs.push_back(ConstantInt::get(IntegerType::getInt32Ty(C), val));
-    return Idxs;
+  std::vector<Value *> Idxs;
+  Idxs.push_back(ConstantInt::get(IntegerType::getInt32Ty(C), 0));
+  Idxs.push_back(ConstantInt::get(IntegerType::getInt32Ty(C), val));
+  return Idxs;
+}
+
+Value* Bandage::Str(IRBuilder<> B, std::string str){
+  return B.CreateGlobalStringPtr(StringRef(blue + str + "\n" + reset));
+}
+
+void Bandage::AddPrint(IRBuilder<> B, std::string str, Value *v){
+  B.CreateCall2(Print, Str(B, str), v);
 }
 
 char Bandage::ID = 0;
