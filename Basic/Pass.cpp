@@ -114,7 +114,6 @@ void Bandage::ModifyArrayAllocs(std::set<Instruction *> ArrayAllocs){
     iter++;
     IRBuilder<> B(iter);
 
-    //Type *ArrayType = ArrayAlloc->getAllocatedType();
     Type *ArrayType = ArrayAlloc->getType();
     Type *IntegerType = IntegerType::getInt32Ty(ArrayAlloc->getContext());
 
@@ -122,7 +121,7 @@ void Bandage::ModifyArrayAllocs(std::set<Instruction *> ArrayAllocs){
     std::vector<Type *> FatPointerMembers;	
     FatPointerMembers.push_back(ArrayType);
     FatPointerMembers.push_back(ArrayType);
-    FatPointerMembers.push_back(IntegerType);
+    FatPointerMembers.push_back(ArrayType);
     Type *FatPointerType = StructType::create(FatPointerMembers, "struct.FatPointer");
 
     Value* FatPointer = B.CreateAlloca(FatPointerType, NULL, "FatPointer");
@@ -135,17 +134,18 @@ void Bandage::ModifyArrayAllocs(std::set<Instruction *> ArrayAllocs){
     std::vector<Value *> LengthIdx = GetIndices(2, ArrayAlloc->getContext());
     Value *FatPointerValue = B.CreateGEP(FatPointer, ValueIdx); 
     Value *FatPointerBase = B.CreateGEP(FatPointer, BaseIdx); 
-    Value *FatPointerLength = B.CreateGEP(FatPointer, LengthIdx); 
+    Value *FatPointerBound = B.CreateGEP(FatPointer, LengthIdx); 
 
-    //Value *Address = B.CreateLoad(ArrayAlloc);
     Value *Address = ArrayAlloc;
     B.CreateStore(Address, FatPointerValue);
     B.CreateStore(Address, FatPointerBase);
 
     Constant *ArrayLength = ConstantInt::get(IntegerType, 
         GetNumElementsInArray(ArrayAlloc) * GetArrayElementSizeInBits(ArrayAlloc, DL)/8); 
+  
+    Value *Bound = B.CreateAdd(ArrayLength, B.CreatePtrToInt(Address, IntegerType));
 
-    B.CreateStore(ArrayLength, FatPointerLength);
+    B.CreateStore(B.CreateIntToPtr(Bound, Address->getType()), FatPointerBound);
   }
 }
 
@@ -175,18 +175,17 @@ void Bandage::ModifyGeps(std::set<Instruction *> GetElementPtrs){
 
     Value *Base = B.CreateLoad(B.CreateInBoundsGEP(FatPointer, 
           GetIndices(1, Gep->getContext())));
-    Value *Length = B.CreateLoad(B.CreateInBoundsGEP(FatPointer, 
+    Value *Bound = B.CreateLoad(B.CreateInBoundsGEP(FatPointer, 
           GetIndices(2, Gep->getContext())));
 
-    Value *Limit = B.CreateAdd(B.CreatePointerCast(Base, Length->getType()), Length);
-
+    Type *IntegerType = IntegerType::getInt32Ty(Gep->getContext());
     Value *InLowerBound = B.CreateICmpUGE(
-        B.CreatePointerCast(NewGep, Length->getType()),
-        B.CreatePointerCast(Base, Limit->getType()) 
+        B.CreatePtrToInt(NewGep, IntegerType),
+        B.CreatePtrToInt(Base, IntegerType) 
         );
     Value *InHigherBound = B.CreateICmpULT(
-        B.CreatePointerCast(NewGep, Length->getType()),
-        Limit
+        B.CreatePtrToInt(NewGep, IntegerType),
+        B.CreatePtrToInt(Bound, IntegerType)
         );
         
     Value *InBounds = B.CreateAnd(InLowerBound, InHigherBound);
