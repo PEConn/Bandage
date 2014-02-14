@@ -1,3 +1,6 @@
+// RUN: ./runOn.sh EditDistance | /pool/users/pc424/llvm_build/bin/FileCheck %s
+// RUN: rm EditDistance.bc EditDistance_ban.bc EditDistance_ban.s EditDistance
+
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -35,6 +38,7 @@ int main(){
     char *w2 = "baboon";    int s2 = 6;
 
     int dist = ComputeEditDistance(w1, s1, w2, s2);
+	// CHECK: The edit distance between balloon and baboon is 2
     printf("The edit distance between %s and %s is %d\n", w1, w2, dist);
 }
 

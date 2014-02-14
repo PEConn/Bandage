@@ -153,7 +153,6 @@ void Bandage::ModifyGeps(std::set<Instruction *> GetElementPtrs){
   for(auto I: GetElementPtrs){
     auto Gep = cast<GetElementPtrInst>(I);
     IRBuilder<> B(Gep);
-    //errs() << *Gep << "\n";
 
     Value* FatPointer = Gep->getPointerOperand(); 
     Value* RawPointer = B.CreateLoad(
