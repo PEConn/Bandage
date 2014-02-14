@@ -4,6 +4,7 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/InstIterator.h"
 #include "llvm/IR/DataLayout.h"
+#include "llvm/IR/Constants.h"
 
 unsigned int GetNumElementsInArray(AllocaInst * ArrayAlloc){
     Type *ArrayType = ArrayAlloc->getAllocatedType();
@@ -51,3 +52,15 @@ void PrintIrWithHighlight(Module &M, std::set<Instruction *> H1,
     }
   }
 }
+
+void removeTerminator(BasicBlock *BB) {
+  TerminatorInst *BBTerm = BB->getTerminator();
+  // Remove the BB as a predecessor from all of  successors
+  for (unsigned i = 0, e = BBTerm->getNumSuccessors(); i != e; ++i) {
+    BBTerm->getSuccessor(i)->removePredecessor(BB);
+  }
+  BBTerm->replaceAllUsesWith(UndefValue::get(BBTerm->getType()));
+  // Remove the terminator instruction itself.
+  BBTerm->eraseFromParent();
+}
+

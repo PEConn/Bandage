@@ -24,4 +24,6 @@ void PrintIrWithHighlight(Module &M, std::set<Instruction *> H1,
 unsigned int GetNumElementsInArray(AllocaInst *);
 unsigned int GetArrayElementSizeInBits(AllocaInst *, DataLayout *);
 
+void removeTerminator(BasicBlock *BB);
+
 #endif

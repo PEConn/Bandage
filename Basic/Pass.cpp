@@ -188,8 +188,24 @@ void Bandage::ModifyGeps(std::set<Instruction *> GetElementPtrs){
         B.CreatePtrToInt(Bound, IntegerType)
         );
         
-    Value *InBounds = B.CreateAnd(InLowerBound, InHigherBound);
-    AddPrint(B, "Valid: %x", InBounds);
+    Instruction *InBounds = cast<Instruction>(B.CreateAnd(InLowerBound, InHigherBound));
+
+    iter = BasicBlock::iterator(InBounds);
+    iter++;
+
+    BasicBlock *BeforeBB = InBounds->getParent();
+    BasicBlock *PassedBB = BeforeBB->splitBasicBlock(iter);
+
+    removeTerminator(BeforeBB);
+    BasicBlock *FailedBB = BasicBlock::Create(InBounds->getContext(),
+        "BoundsCheckFailed", BeforeBB->getParent());
+
+    B.SetInsertPoint(BeforeBB);
+    B.CreateCondBr(InBounds, PassedBB, FailedBB);
+
+    B.SetInsertPoint(FailedBB);
+    B.CreateCall(Print, Str(B, "OutOfBounds"));
+    B.CreateBr(PassedBB);
   }
 }
 

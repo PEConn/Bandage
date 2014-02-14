@@ -11,9 +11,4 @@ int main(){
 // RUN: ./runOn.sh ReadArray | /pool/users/pc424/llvm_build/bin/FileCheck %s
 // RUN: rm ReadArray.bc ReadArray_ban.bc ReadArray_ban.s ReadArray
 
-// CHECK: Valid: 1
-// CHECK: Valid: 1
-// CHECK: Valid: 1
-// CHECK: Valid: 1
-// CHECK: Valid: 1
-// CHECK: Valid: 0
+// CHECK: OutOfBounds
