@@ -5,7 +5,7 @@ llc="/pool/users/pc424/llvm_build/bin/llc"
 clang="/pool/users/pc424/llvm_build/bin/clang"
 
 echo -en "\033[33m"
-clang -S -emit-llvm ${1}.c -o ${1}.bc
+${clang} -S -emit-llvm ${1}.c -o ${1}.bc
 ${opt} -S -bandage ${1}.bc > ${1}_ban.bc
 ${llc} ${1}_ban.bc -o ${1}_ban.s
 ${clang} ${1}_ban.s -o ${1} 
