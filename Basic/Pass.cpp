@@ -30,11 +30,14 @@ struct Bandage : public ModulePass{
     std::set<Instruction *> PointerStores = CollectPointerStores(M);
     std::set<Instruction *> PointerLoads = CollectPointerLoads(M);
 
-    PrintIrWithHighlight(M, PointerAllocs, PointerStores, PointerLoads);
+    //PrintIrWithHighlight(M, PointerAllocs, PointerStores, PointerLoads);
     //DisplayArrayInformation(ArrayAllocs);
     //DisplayGepInformation(GetElementPtrs);
     //ModifyArrayAllocs(ArrayAllocs);
     //ModifyGeps(GetElementPtrs);
+    ModifyPointerAllocs(PointerAllocs);
+    ModifyPointerStores(PointerStores);
+    ModifyPointerLoads(PointerLoads);
 
     return true;
   }
@@ -53,6 +56,9 @@ private:
 
   void ModifyGeps(std::set<Instruction *> GetElementPtrs);
   void ModifyArrayAllocs(std::set<Instruction *> ArrayAllocs);
+  void ModifyPointerAllocs(std::set<Instruction *> ArrayAllocs);
+  void ModifyPointerStores(std::set<Instruction *> ArrayAllocs);
+  void ModifyPointerLoads(std::set<Instruction *> ArrayAllocs);
 
   std::vector<Value *> GetIndices(int val, LLVMContext& C);
   Value* Str(IRBuilder<> B, std::string str);
@@ -99,7 +105,6 @@ std::set<Instruction *> Bandage::CollectPointerStores(Module &M){
       if(StoreInst *I = dyn_cast<StoreInst>(&*II)){
         if(!I->getPointerOperand()->getType()->getPointerElementType()->isPointerTy())
           continue;
-        errs() << *I->getPointerOperand()->getType() << "\n";
         PointerStores.insert(I);
       }
     }
@@ -114,7 +119,6 @@ std::set<Instruction *> Bandage::CollectPointerLoads(Module &M){
       if(LoadInst *I = dyn_cast<LoadInst>(&*II)){
         if(!I->getPointerOperand()->getType()->getPointerElementType()->isPointerTy())
           continue;
-        errs() << *I->getPointerOperand()->getType() << "\n";
         PointerLoads.insert(I);
       }
     }
@@ -174,7 +178,6 @@ void Bandage::ModifyArrayAllocs(std::set<Instruction *> ArrayAllocs){
     FatPointerMembers.push_back(ArrayType);
     FatPointerMembers.push_back(ArrayType);
     Type *FatPointerType = StructType::create(FatPointerMembers, "struct.FatPointer");
-
     Value* FatPointer = B.CreateAlloca(FatPointerType, NULL, "FatPointer");
     ArrayAlloc->replaceAllUsesWith(FatPointer);
     // All code below can use the original ArrayAlloc
@@ -200,6 +203,67 @@ void Bandage::ModifyArrayAllocs(std::set<Instruction *> ArrayAllocs){
   }
 }
 
+void Bandage::ModifyPointerAllocs(std::set<Instruction *> PointerAllocs){
+  for(auto I: PointerAllocs){
+    auto PointerAlloc = cast<AllocaInst>(I);
+    BasicBlock::iterator iter = PointerAlloc;
+    iter++;
+    IRBuilder<> B(iter);
+
+    Type *PointerType = PointerAlloc->getType();
+
+    // Construct the type for the fat pointer
+    std::vector<Type *> FatPointerMembers;	
+    FatPointerMembers.push_back(PointerType);
+    FatPointerMembers.push_back(PointerType);
+    FatPointerMembers.push_back(PointerType);
+    Type *FatPointerType = StructType::create(FatPointerMembers, "struct.FatPointer");
+
+    Value* FatPointer = B.CreateAlloca(FatPointerType, NULL, "fp" + PointerAlloc->getName());
+    PointerAlloc->replaceAllUsesWith(FatPointer);
+    // All code below can use the original PointerAlloc
+
+    // Initialize Value to current value and everything else to zero
+    std::vector<Value *> ValueIdx = GetIndices(0, PointerAlloc->getContext());
+    std::vector<Value *> BaseIdx = GetIndices(1, PointerAlloc->getContext());
+    std::vector<Value *> LengthIdx = GetIndices(2, PointerAlloc->getContext());
+    Value *FatPointerValue = B.CreateGEP(FatPointer, ValueIdx); 
+    Value *FatPointerBase = B.CreateGEP(FatPointer, BaseIdx); 
+    Value *FatPointerBound = B.CreateGEP(FatPointer, LengthIdx); 
+
+    Value *Address = PointerAlloc;
+    B.CreateStore(Address, FatPointerValue);
+    B.CreateStore(Address, FatPointerBase);
+    B.CreateStore(Address, FatPointerBound);
+  }
+}
+void Bandage::ModifyPointerStores(std::set<Instruction *> PointerStores){
+  for(auto I: PointerStores){
+    auto PointerStore = cast<StoreInst>(I);
+    IRBuilder<> B(PointerStore);
+
+    Value* FatPointer = PointerStore->getPointerOperand(); 
+    Value* RawPointer = B.CreateLoad(
+        B.CreateGEP(FatPointer, GetIndices(0, PointerStore->getContext())));
+
+    B.CreateStore(PointerStore->getValueOperand(), RawPointer);
+    PointerStore->eraseFromParent();
+  }
+}
+void Bandage::ModifyPointerLoads(std::set<Instruction *> PointerLoads){
+  for(auto I: PointerLoads){
+    auto PointerLoad = cast<LoadInst>(I);
+    IRBuilder<> B(PointerLoad);
+
+    Value* FatPointer = PointerLoad->getPointerOperand(); 
+    Value* RawPointer = B.CreateLoad(
+        B.CreateGEP(FatPointer, GetIndices(0, PointerLoad->getContext())));
+
+    Value* NewLoad = B.CreateLoad(RawPointer);
+    PointerLoad->replaceAllUsesWith(NewLoad);
+    PointerLoad->eraseFromParent();
+  }
+}
 void Bandage::ModifyGeps(std::set<Instruction *> GetElementPtrs){
   for(auto I: GetElementPtrs){
     auto Gep = cast<GetElementPtrInst>(I);

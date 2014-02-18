@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <stdio.h>
 
 int main(){
 	int x;
@@ -11,7 +12,8 @@ int main(){
 	
 	y = malloc(sizeof(int));
 	*y = 5;
-	free(y);
+	printf("%d\n", *y);
+	//free(y);
 
 	return 0;
 }
