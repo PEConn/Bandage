@@ -26,12 +26,15 @@ struct Bandage : public ModulePass{
 
     std::set<Instruction *> ArrayAllocs = CollectArrayAllocs(M);
     std::set<Instruction *> GetElementPtrs = CollectGetElementPtrs(M);
+    std::set<Instruction *> PointerAllocs = CollectPointerAllocs(M);
+    std::set<Instruction *> PointerStores = CollectPointerStores(M);
+    std::set<Instruction *> PointerLoads = CollectPointerLoads(M);
 
-    //PrintIrWithHighlight(M, ArrayAllocs, GetElementPtrs);
+    PrintIrWithHighlight(M, PointerAllocs, PointerStores, PointerLoads);
     //DisplayArrayInformation(ArrayAllocs);
     //DisplayGepInformation(GetElementPtrs);
-    ModifyArrayAllocs(ArrayAllocs);
-    ModifyGeps(GetElementPtrs);
+    //ModifyArrayAllocs(ArrayAllocs);
+    //ModifyGeps(GetElementPtrs);
 
     return true;
   }
@@ -41,6 +44,9 @@ private:
 
   std::set<Instruction *> CollectArrayAllocs(Module &M);
   std::set<Instruction *> CollectGetElementPtrs(Module &M);
+  std::set<Instruction *> CollectPointerStores(Module &M);
+  std::set<Instruction *> CollectPointerLoads(Module &M);
+  std::set<Instruction *> CollectPointerAllocs(Module &M);
 
   void DisplayArrayInformation(std::set<Instruction *> ArrayAllocs);
   void DisplayGepInformation(std::set<Instruction *> GetElementPtrs);
@@ -85,6 +91,51 @@ std::set<Instruction *> Bandage::CollectGetElementPtrs(Module &M){
   return GetElementPtrs;
 }
 
+std::set<Instruction *> Bandage::CollectPointerStores(Module &M){
+  std::set<Instruction *> PointerStores;
+
+  for(auto IF = M.begin(), EF = M.end(); IF != EF; ++IF){
+    for(auto II = inst_begin(IF), EI = inst_end(IF); II != EI; ++II){
+      if(StoreInst *I = dyn_cast<StoreInst>(&*II)){
+        if(!I->getPointerOperand()->getType()->getPointerElementType()->isPointerTy())
+          continue;
+        errs() << *I->getPointerOperand()->getType() << "\n";
+        PointerStores.insert(I);
+      }
+    }
+  }
+  return PointerStores;
+}
+std::set<Instruction *> Bandage::CollectPointerLoads(Module &M){
+  std::set<Instruction *> PointerLoads;
+
+  for(auto IF = M.begin(), EF = M.end(); IF != EF; ++IF){
+    for(auto II = inst_begin(IF), EI = inst_end(IF); II != EI; ++II){
+      if(LoadInst *I = dyn_cast<LoadInst>(&*II)){
+        if(!I->getPointerOperand()->getType()->getPointerElementType()->isPointerTy())
+          continue;
+        errs() << *I->getPointerOperand()->getType() << "\n";
+        PointerLoads.insert(I);
+      }
+    }
+  }
+  return PointerLoads;
+}
+std::set<Instruction *> Bandage::CollectPointerAllocs(Module &M){
+  std::set<Instruction *> PointerAllocs;
+
+  for(auto IF = M.begin(), EF = M.end(); IF != EF; ++IF){
+    for(auto II = inst_begin(IF), EI = inst_end(IF); II != EI; ++II){
+      Instruction *I = &*II;
+      if(AllocaInst *I = dyn_cast<AllocaInst>(&*II)){
+        if(!I->getType()->getPointerElementType()->isPointerTy())
+          continue;
+        PointerAllocs.insert(I);
+      }
+    }
+  }
+  return PointerAllocs;
+}
 void Bandage::DisplayArrayInformation(std::set<Instruction *> ArrayAllocs){
   for(auto I: ArrayAllocs){
     auto ArrayAlloc = cast<AllocaInst>(I);
