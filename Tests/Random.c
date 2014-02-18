@@ -13,7 +13,7 @@ int main(){
 	y = malloc(sizeof(int));
 	*y = 5;
 	printf("%d\n", *y);
-	//free(y);
+	free(y);
 
 	return 0;
 }

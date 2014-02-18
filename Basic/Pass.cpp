@@ -30,7 +30,7 @@ struct Bandage : public ModulePass{
     std::set<Instruction *> PointerStores = CollectPointerStores(M);
     std::set<Instruction *> PointerLoads = CollectPointerLoads(M);
 
-    //PrintIrWithHighlight(M, PointerAllocs, PointerStores, PointerLoads);
+    PrintIrWithHighlight(M, PointerAllocs, PointerStores, PointerLoads);
     //DisplayArrayInformation(ArrayAllocs);
     //DisplayGepInformation(GetElementPtrs);
     //ModifyArrayAllocs(ArrayAllocs);
@@ -210,7 +210,7 @@ void Bandage::ModifyPointerAllocs(std::set<Instruction *> PointerAllocs){
     iter++;
     IRBuilder<> B(iter);
 
-    Type *PointerType = PointerAlloc->getType();
+    Type *PointerType = PointerAlloc->getType()->getPointerElementType();
 
     // Construct the type for the fat pointer
     std::vector<Type *> FatPointerMembers;	
@@ -231,7 +231,7 @@ void Bandage::ModifyPointerAllocs(std::set<Instruction *> PointerAllocs){
     Value *FatPointerBase = B.CreateGEP(FatPointer, BaseIdx); 
     Value *FatPointerBound = B.CreateGEP(FatPointer, LengthIdx); 
 
-    Value *Address = PointerAlloc;
+    Value *Address = B.CreateLoad(PointerAlloc);
     B.CreateStore(Address, FatPointerValue);
     B.CreateStore(Address, FatPointerBase);
     B.CreateStore(Address, FatPointerBound);
@@ -243,10 +243,36 @@ void Bandage::ModifyPointerStores(std::set<Instruction *> PointerStores){
     IRBuilder<> B(PointerStore);
 
     Value* FatPointer = PointerStore->getPointerOperand(); 
-    Value* RawPointer = B.CreateLoad(
-        B.CreateGEP(FatPointer, GetIndices(0, PointerStore->getContext())));
+    Value* RawPointer = 
+        B.CreateGEP(FatPointer, GetIndices(0, PointerStore->getContext()));
 
-    B.CreateStore(PointerStore->getValueOperand(), RawPointer);
+    Value *Address = PointerStore->getValueOperand();
+    Instruction *NewStore = B.CreateStore(Address, RawPointer);
+
+    B.SetInsertPoint(NewStore);
+
+    // Check if this comes from a malloc like instruction
+    if(auto BC = dyn_cast<BitCastInst>(PointerStore->getValueOperand())){
+      if(auto Call = dyn_cast<CallInst>(BC->getOperand(0))){
+        if(Call->getCalledFunction()->getName() == "malloc"){
+          Value* FatPointerBase = 
+              B.CreateGEP(FatPointer, GetIndices(1, PointerStore->getContext()));
+          B.CreateStore(Address, FatPointerBase);
+
+          Type *IntegerType = IntegerType::getInt32Ty(PointerStore->getContext());
+          Value *Size = Call->getArgOperand(0);
+
+          Value *Bound = B.CreateAdd(
+              B.CreateTruncOrBitCast(Size, IntegerType),
+              B.CreatePtrToInt(Address, IntegerType));
+
+          Value* FatPointerBound = 
+              B.CreateGEP(FatPointer, GetIndices(2, PointerStore->getContext()));
+
+          B.CreateStore(B.CreateIntToPtr(Bound, Address->getType()), FatPointerBound);
+        }
+      }
+    }
     PointerStore->eraseFromParent();
   }
 }
@@ -256,8 +282,8 @@ void Bandage::ModifyPointerLoads(std::set<Instruction *> PointerLoads){
     IRBuilder<> B(PointerLoad);
 
     Value* FatPointer = PointerLoad->getPointerOperand(); 
-    Value* RawPointer = B.CreateLoad(
-        B.CreateGEP(FatPointer, GetIndices(0, PointerLoad->getContext())));
+    Value* RawPointer = 
+        B.CreateGEP(FatPointer, GetIndices(0, PointerLoad->getContext()));
 
     Value* NewLoad = B.CreateLoad(RawPointer);
     PointerLoad->replaceAllUsesWith(NewLoad);
