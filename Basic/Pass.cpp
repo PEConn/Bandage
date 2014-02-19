@@ -30,7 +30,7 @@ struct Bandage : public ModulePass{
     std::set<Instruction *> PointerStores = CollectPointerStores(M);
     std::set<Instruction *> PointerLoads = CollectPointerLoads(M);
 
-    PrintIrWithHighlight(M, PointerAllocs, PointerStores, PointerLoads);
+    //PrintIrWithHighlight(M, PointerAllocs, PointerStores, PointerLoads);
     //DisplayArrayInformation(ArrayAllocs);
     //DisplayGepInformation(GetElementPtrs);
     ModifyArrayAllocs(ArrayAllocs);

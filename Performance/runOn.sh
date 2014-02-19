@@ -23,7 +23,7 @@ do
 done
 
 echo `date` >> ArrayWrites.log
-awk '{total += $3} END {print "Raw: " total/NR;}' ArrayWrites-times.txt >> ArrayWrites.log
-awk '{total += $3} END {print "Ban: " total/NR;}' ArrayWrites-ban-times.txt >> ArrayWrites.log
+awk '{total += $3} END {print "Raw: " total/NR;}' ${1}-times.txt >> ${1}.log
+awk '{total += $3} END {print "Ban: " total/NR;}' ${1}-ban-times.txt >> ${1}.log
 
-tail -n 2 ArrayWrites.log
+tail -n 2 ${1}.log
