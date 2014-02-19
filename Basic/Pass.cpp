@@ -33,8 +33,8 @@ struct Bandage : public ModulePass{
     PrintIrWithHighlight(M, PointerAllocs, PointerStores, PointerLoads);
     //DisplayArrayInformation(ArrayAllocs);
     //DisplayGepInformation(GetElementPtrs);
-    //ModifyArrayAllocs(ArrayAllocs);
-    //ModifyGeps(GetElementPtrs);
+    ModifyArrayAllocs(ArrayAllocs);
+    ModifyGeps(GetElementPtrs);
     ModifyPointerAllocs(PointerAllocs);
     ModifyPointerStores(PointerStores);
     ModifyPointerLoads(PointerLoads);
@@ -59,6 +59,8 @@ private:
   void ModifyPointerAllocs(std::set<Instruction *> ArrayAllocs);
   void ModifyPointerStores(std::set<Instruction *> ArrayAllocs);
   void ModifyPointerLoads(std::set<Instruction *> ArrayAllocs);
+
+  void CreateBoundsCheck(IRBuilder<> &B, Value *Val, Value *Base, Value *Bound);
 
   std::vector<Value *> GetIndices(int val, LLVMContext& C);
   Value* Str(IRBuilder<> B, std::string str);
@@ -284,9 +286,14 @@ void Bandage::ModifyPointerLoads(std::set<Instruction *> PointerLoads){
     Value* FatPointer = PointerLoad->getPointerOperand(); 
     Value* RawPointer = 
         B.CreateGEP(FatPointer, GetIndices(0, PointerLoad->getContext()));
+    Value* Base = B.CreateLoad(
+        B.CreateGEP(FatPointer, GetIndices(1, PointerLoad->getContext())));
+    Value* Bound = B.CreateLoad(
+        B.CreateGEP(FatPointer, GetIndices(2, PointerLoad->getContext())));
 
     Value* NewLoad = B.CreateLoad(RawPointer);
     PointerLoad->replaceAllUsesWith(NewLoad);
+    CreateBoundsCheck(B, B.CreateLoad(RawPointer), Base, Bound);
     PointerLoad->eraseFromParent();
   }
 }
@@ -318,35 +325,39 @@ void Bandage::ModifyGeps(std::set<Instruction *> GetElementPtrs){
     Value *Bound = B.CreateLoad(B.CreateInBoundsGEP(FatPointer, 
           GetIndices(2, Gep->getContext())));
 
-    Type *IntegerType = IntegerType::getInt32Ty(Gep->getContext());
-    Value *InLowerBound = B.CreateICmpUGE(
-        B.CreatePtrToInt(NewGep, IntegerType),
-        B.CreatePtrToInt(Base, IntegerType) 
-        );
-    Value *InHigherBound = B.CreateICmpULT(
-        B.CreatePtrToInt(NewGep, IntegerType),
-        B.CreatePtrToInt(Bound, IntegerType)
-        );
-        
-    Instruction *InBounds = cast<Instruction>(B.CreateAnd(InLowerBound, InHigherBound));
-
-    iter = BasicBlock::iterator(InBounds);
-    iter++;
-
-    BasicBlock *BeforeBB = InBounds->getParent();
-    BasicBlock *PassedBB = BeforeBB->splitBasicBlock(iter);
-
-    removeTerminator(BeforeBB);
-    BasicBlock *FailedBB = BasicBlock::Create(InBounds->getContext(),
-        "BoundsCheckFailed", BeforeBB->getParent());
-
-    B.SetInsertPoint(BeforeBB);
-    B.CreateCondBr(InBounds, PassedBB, FailedBB);
-
-    B.SetInsertPoint(FailedBB);
-    B.CreateCall(Print, Str(B, "OutOfBounds"));
-    B.CreateBr(PassedBB);
+    CreateBoundsCheck(B, NewGep, Base, Bound);
   }
+}
+
+void Bandage::CreateBoundsCheck(IRBuilder<> &B, Value *Val, Value *Base, Value *Bound){
+  Type *IntegerType = IntegerType::getInt32Ty(Val->getContext());
+  Value *InLowerBound = B.CreateICmpUGE(
+      B.CreatePtrToInt(Val, IntegerType),
+      B.CreatePtrToInt(Base, IntegerType) 
+      );
+  Value *InHigherBound = B.CreateICmpULT(
+      B.CreatePtrToInt(Val, IntegerType),
+      B.CreatePtrToInt(Bound, IntegerType)
+      );
+      
+  Instruction *InBounds = cast<Instruction>(B.CreateAnd(InLowerBound, InHigherBound));
+
+  BasicBlock::iterator iter = BasicBlock::iterator(InBounds);
+  iter++;
+
+  BasicBlock *BeforeBB = InBounds->getParent();
+  BasicBlock *PassedBB = BeforeBB->splitBasicBlock(iter);
+
+  removeTerminator(BeforeBB);
+  BasicBlock *FailedBB = BasicBlock::Create(InBounds->getContext(),
+      "BoundsCheckFailed", BeforeBB->getParent());
+
+  B.SetInsertPoint(BeforeBB);
+  B.CreateCondBr(InBounds, PassedBB, FailedBB);
+
+  B.SetInsertPoint(FailedBB);
+  B.CreateCall(Print, Str(B, "OutOfBounds"));
+  B.CreateBr(PassedBB);
 }
 
 std::vector<Value *> Bandage::GetIndices(int val, LLVMContext& C){
