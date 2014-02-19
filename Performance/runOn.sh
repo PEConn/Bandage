@@ -22,7 +22,7 @@ do
 	${time} -a -o ${1}-ban-times.txt ./${1}_ban > /dev/null
 done
 
-echo `date` >> ArrayWrites.log
+echo `date` >> ${i}.log
 awk '{total += $3} END {print "Raw: " total/NR;}' ${1}-times.txt >> ${1}.log
 awk '{total += $3} END {print "Ban: " total/NR;}' ${1}-ban-times.txt >> ${1}.log
 
