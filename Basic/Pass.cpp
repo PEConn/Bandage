@@ -25,19 +25,28 @@ struct Bandage : public ModulePass{
     Print = M.getFunction("printf");
 
     std::set<Instruction *> ArrayAllocs = CollectArrayAllocs(M);
-    std::set<Instruction *> GetElementPtrs = CollectGetElementPtrs(M);
+    //std::set<Instruction *> GetElementPtrs = CollectGetElementPtrs(M);
     std::set<Instruction *> PointerAllocs = CollectPointerAllocs(M);
     std::set<Instruction *> PointerStores = CollectPointerStores(M);
     std::set<Instruction *> PointerLoads = CollectPointerLoads(M);
+
+    std::set<Instruction *> ArrayGeps;
+    for(auto Arr: ArrayAllocs){
+      for(Value::use_iterator i = Arr->use_begin(), e = Arr->use_end(); i!=e; ++i){
+        if(auto Gep = dyn_cast<GetElementPtrInst>(*i)){
+          ArrayGeps.insert(Gep);
+        }
+      }
+    }
 
     //PrintIrWithHighlight(M, PointerAllocs, PointerStores, PointerLoads);
     //DisplayArrayInformation(ArrayAllocs);
     //DisplayGepInformation(GetElementPtrs);
     ModifyArrayAllocs(ArrayAllocs);
-    ModifyGeps(GetElementPtrs);
     ModifyPointerAllocs(PointerAllocs);
     ModifyPointerStores(PointerStores);
     ModifyPointerLoads(PointerLoads);
+    ModifyGeps(ArrayGeps);
 
     return true;
   }
@@ -254,27 +263,32 @@ void Bandage::ModifyPointerStores(std::set<Instruction *> PointerStores){
     B.SetInsertPoint(NewStore);
 
     // Check if this comes from a malloc like instruction
-    if(auto BC = dyn_cast<BitCastInst>(PointerStore->getValueOperand())){
-      if(auto Call = dyn_cast<CallInst>(BC->getOperand(0))){
-        if(Call->getCalledFunction()->getName() == "malloc"){
-          Value* FatPointerBase = 
-              B.CreateGEP(FatPointer, GetIndices(1, PointerStore->getContext()));
-          B.CreateStore(Address, FatPointerBase);
+    Value *Prev = PointerStore->getValueOperand();
 
-          Type *IntegerType = IntegerType::getInt32Ty(PointerStore->getContext());
-          Value *Size = Call->getArgOperand(0);
+    // Follow through a cast if there is one
+    if(auto BC = dyn_cast<BitCastInst>(Prev))
+      Prev = BC->getOperand(0);
 
-          Value *Bound = B.CreateAdd(
-              B.CreateTruncOrBitCast(Size, IntegerType),
-              B.CreatePtrToInt(Address, IntegerType));
+    if(auto Call = dyn_cast<CallInst>(Prev)){
+      if(Call->getCalledFunction()->getName() == "malloc"){
+        Value* FatPointerBase = 
+            B.CreateGEP(FatPointer, GetIndices(1, PointerStore->getContext()));
+        B.CreateStore(Address, FatPointerBase);
 
-          Value* FatPointerBound = 
-              B.CreateGEP(FatPointer, GetIndices(2, PointerStore->getContext()));
+        Type *IntegerType = IntegerType::getInt64Ty(PointerStore->getContext());
+        Value *Size = Call->getArgOperand(0);
 
-          B.CreateStore(B.CreateIntToPtr(Bound, Address->getType()), FatPointerBound);
-        }
+        Value *Bound = B.CreateAdd(
+            B.CreateTruncOrBitCast(Size, IntegerType),
+            B.CreatePtrToInt(Address, IntegerType));
+
+        Value* FatPointerBound = 
+            B.CreateGEP(FatPointer, GetIndices(2, PointerStore->getContext()));
+
+        B.CreateStore(B.CreateIntToPtr(Bound, Address->getType()), FatPointerBound);
       }
     }
+    
     PointerStore->eraseFromParent();
   }
 }
@@ -330,6 +344,9 @@ void Bandage::ModifyGeps(std::set<Instruction *> GetElementPtrs){
 }
 
 void Bandage::CreateBoundsCheck(IRBuilder<> &B, Value *Val, Value *Base, Value *Bound){
+  //AddPrint(B, "Value: %p", Val);
+  //AddPrint(B, "Base:  %p", Base);
+  //AddPrint(B, "Bound: %p", Bound);
   Type *IntegerType = IntegerType::getInt32Ty(Val->getContext());
   Value *InLowerBound = B.CreateICmpUGE(
       B.CreatePtrToInt(Val, IntegerType),
