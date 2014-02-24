@@ -1,5 +1,4 @@
 // RUN: ./runOn.sh BufferOverflow | /pool/users/pc424/llvm_build/bin/FileCheck %s
-// RUN: rm BufferOverflow.bc BufferOverflow_ban.bc BufferOverflow_ban.s BufferOverflow
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -10,15 +9,21 @@ int main(){
   char *w1 = malloc(sizeof(char)*4);
   char *w2 = malloc(sizeof(char)*2);
 
-  //*(w1+3) = '\0';
   w1 = w1+3;
-  *w1 = '-';
+  *w1 = 'x';
   w1 = w1-3;
 
-  for(; /* *w1 == *w2 */ ; w1++, w2++){
+  // CHECK-NOT: OutOfBounds
+  printf("Dirty\n");
+  // CHECK: Dirty
+  for(; *w1 == *w2; w1++, w2++){
     if (*w1 != '\0')
       break;
   }
+  // CHECK: OutOfBounds
+  // CHECK: OutOfBounds
+  // CHECK: OutOfBounds
+  // CHECK: OutOfBounds
 
   free(w1);
   free(w2);

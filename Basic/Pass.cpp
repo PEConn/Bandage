@@ -12,6 +12,7 @@
 #include "llvm/Support/InstIterator.h"
 
 #include "../Helpers/Helpers.h"
+#include "FatPointers.hpp"
 
 using namespace llvm;
 
@@ -23,6 +24,7 @@ struct Bandage : public ModulePass{
   virtual bool runOnModule(Module &M) {
     DL = new DataLayout(&M);
     Print = M.getFunction("printf");
+    FPS = new FatPointers();
 
     std::set<Instruction *> ArrayAllocs = CollectArrayAllocs(M);
     //std::set<Instruction *> GetElementPtrs = CollectGetElementPtrs(M);
@@ -39,9 +41,12 @@ struct Bandage : public ModulePass{
       }
     }
 
+    std::set<Function *> Functions = CollectFunctions(M);
+
     //PrintIrWithHighlight(M, PointerAllocs, PointerStores, PointerLoads);
     //DisplayArrayInformation(ArrayAllocs);
     //DisplayGepInformation(GetElementPtrs);
+    CreateDuplicatesOfFunctions(Functions);
     ModifyArrayAllocs(ArrayAllocs);
     ModifyPointerAllocs(PointerAllocs);
     ModifyPointerStores(PointerStores);
@@ -53,22 +58,26 @@ struct Bandage : public ModulePass{
 private:
   DataLayout *DL = NULL;
   Function *Print = NULL;
+  FatPointers *FPS = NULL;
 
   std::set<Instruction *> CollectArrayAllocs(Module &M);
   std::set<Instruction *> CollectGetElementPtrs(Module &M);
   std::set<Instruction *> CollectPointerStores(Module &M);
   std::set<Instruction *> CollectPointerLoads(Module &M);
   std::set<Instruction *> CollectPointerAllocs(Module &M);
+  std::set<Function *> CollectFunctions(Module &M);
 
   void DisplayArrayInformation(std::set<Instruction *> ArrayAllocs);
   void DisplayGepInformation(std::set<Instruction *> GetElementPtrs);
 
+  void CreateDuplicatesOfFunctions(std::set<Function *> Functions);
   void ModifyGeps(std::set<Instruction *> GetElementPtrs);
   void ModifyArrayAllocs(std::set<Instruction *> ArrayAllocs);
   void ModifyPointerAllocs(std::set<Instruction *> ArrayAllocs);
   void ModifyPointerStores(std::set<Instruction *> ArrayAllocs);
   void ModifyPointerLoads(std::set<Instruction *> ArrayAllocs);
-
+  void SetBoundsForMalloc(IRBuilder<> &B, StoreInst *PointerStore);
+  void SetBoundsForConstString(IRBuilder<> &B, StoreInst *PointerStore);
   void CreateBoundsCheck(IRBuilder<> &B, Value *Val, Value *Base, Value *Bound);
 
   std::vector<Value *> GetIndices(int val, LLVMContext& C);
@@ -94,7 +103,6 @@ std::set<Instruction *> Bandage::CollectArrayAllocs(Module &M){
   }
   return ArrayAllocs;
 }
-
 std::set<Instruction *> Bandage::CollectGetElementPtrs(Module &M){
   std::set<Instruction *> GetElementPtrs;
 
@@ -107,7 +115,6 @@ std::set<Instruction *> Bandage::CollectGetElementPtrs(Module &M){
   }
   return GetElementPtrs;
 }
-
 std::set<Instruction *> Bandage::CollectPointerStores(Module &M){
   std::set<Instruction *> PointerStores;
 
@@ -151,6 +158,21 @@ std::set<Instruction *> Bandage::CollectPointerAllocs(Module &M){
   }
   return PointerAllocs;
 }
+std::set<Function *> Bandage::CollectFunctions(Module &M){
+  std::set<Function *> Functions;
+  for(auto IF = M.begin(), EF = M.end(); IF != EF; ++IF){
+    Function *F = &*IF;
+    // Should this be changed to 'isDeclaration'?
+    if(F->empty())
+      continue;
+    if(F->getName() == "main")
+      continue;
+
+    Functions.insert(F);
+  }
+  return Functions;
+}
+
 void Bandage::DisplayArrayInformation(std::set<Instruction *> ArrayAllocs){
   for(auto I: ArrayAllocs){
     auto ArrayAlloc = cast<AllocaInst>(I);
@@ -165,7 +187,6 @@ void Bandage::DisplayArrayInformation(std::set<Instruction *> ArrayAllocs){
     errs() << "Element Size(d):\t" << DL->getTypeAllocSize(ElementType) << "\n";
   }
 }
-
 void Bandage::DisplayGepInformation(std::set<Instruction *> GetElementPtrs){
   for(auto I: GetElementPtrs){
     auto Gep = cast<GetElementPtrInst>(I);
@@ -184,12 +205,13 @@ void Bandage::ModifyArrayAllocs(std::set<Instruction *> ArrayAllocs){
     Type *IntegerType = IntegerType::getInt32Ty(ArrayAlloc->getContext());
 
     // Construct the type for the fat pointer
-    std::vector<Type *> FatPointerMembers;	
+    /*std::vector<Type *> FatPointerMembers;	
     FatPointerMembers.push_back(ArrayType);
     FatPointerMembers.push_back(ArrayType);
     FatPointerMembers.push_back(ArrayType);
-    Type *FatPointerType = StructType::create(FatPointerMembers, "struct.FatPointer");
-    Value* FatPointer = B.CreateAlloca(FatPointerType, NULL, "FatPointer");
+    Type *FatPointerType = StructType::create(FatPointerMembers, "struct.FatPointer");*/
+    Type *FatPointerType = FPS->GetFatPointerType(ArrayType);
+    Value *FatPointer = B.CreateAlloca(FatPointerType, NULL, "FatPointer");
     ArrayAlloc->replaceAllUsesWith(FatPointer);
     // All code below can use the original ArrayAlloc
 
@@ -213,7 +235,6 @@ void Bandage::ModifyArrayAllocs(std::set<Instruction *> ArrayAllocs){
     B.CreateStore(B.CreateIntToPtr(Bound, Address->getType()), FatPointerBound);
   }
 }
-
 void Bandage::ModifyPointerAllocs(std::set<Instruction *> PointerAllocs){
   for(auto I: PointerAllocs){
     auto PointerAlloc = cast<AllocaInst>(I);
@@ -224,11 +245,12 @@ void Bandage::ModifyPointerAllocs(std::set<Instruction *> PointerAllocs){
     Type *PointerType = PointerAlloc->getType()->getPointerElementType();
 
     // Construct the type for the fat pointer
-    std::vector<Type *> FatPointerMembers;	
+    /*std::vector<Type *> FatPointerMembers;	
     FatPointerMembers.push_back(PointerType);
     FatPointerMembers.push_back(PointerType);
     FatPointerMembers.push_back(PointerType);
-    Type *FatPointerType = StructType::create(FatPointerMembers, "struct.FatPointer");
+    Type *FatPointerType = StructType::create(FatPointerMembers, "struct.FatPointer");*/
+    Type *FatPointerType = FPS->GetFatPointerType(PointerType);
 
     Value* FatPointer = B.CreateAlloca(FatPointerType, NULL, "fp" + PointerAlloc->getName());
     PointerAlloc->replaceAllUsesWith(FatPointer);
@@ -262,35 +284,69 @@ void Bandage::ModifyPointerStores(std::set<Instruction *> PointerStores){
 
     B.SetInsertPoint(NewStore);
 
-    // Check if this comes from a malloc like instruction
-    Value *Prev = PointerStore->getValueOperand();
-
-    // Follow through a cast if there is one
-    if(auto BC = dyn_cast<BitCastInst>(Prev))
-      Prev = BC->getOperand(0);
-
-    if(auto Call = dyn_cast<CallInst>(Prev)){
-      if(Call->getCalledFunction()->getName() == "malloc"){
-        Value* FatPointerBase = 
-            B.CreateGEP(FatPointer, GetIndices(1, PointerStore->getContext()));
-        B.CreateStore(Address, FatPointerBase);
-
-        Type *IntegerType = IntegerType::getInt64Ty(PointerStore->getContext());
-        Value *Size = Call->getArgOperand(0);
-
-        Value *Bound = B.CreateAdd(
-            B.CreateTruncOrBitCast(Size, IntegerType),
-            B.CreatePtrToInt(Address, IntegerType));
-
-        Value* FatPointerBound = 
-            B.CreateGEP(FatPointer, GetIndices(2, PointerStore->getContext()));
-
-        B.CreateStore(B.CreateIntToPtr(Bound, Address->getType()), FatPointerBound);
-      }
-    }
+    SetBoundsForMalloc(B, PointerStore);
+    SetBoundsForConstString(B, PointerStore);
     
     PointerStore->eraseFromParent();
   }
+}
+void Bandage::SetBoundsForConstString(IRBuilder<> &B, StoreInst *PointerStore){
+  // In this case, the Address will be a GEP instruction
+  Value *Address = PointerStore->getValueOperand();
+  auto *Gep = dyn_cast<GEPOperator>(Address);
+  if(!Gep)
+    return;
+
+  if(!Gep->getPointerOperand()->getType()->getPointerElementType()->isArrayTy())
+    return;
+
+  Type *IntegerType = IntegerType::getInt64Ty(PointerStore->getContext());
+  Value* FatPointer = PointerStore->getPointerOperand(); 
+  Value* FatPointerBase = 
+      B.CreateGEP(FatPointer, GetIndices(1, PointerStore->getContext()));
+  Value* FatPointerBound = 
+      B.CreateGEP(FatPointer, GetIndices(2, PointerStore->getContext()));
+
+  B.CreateStore(Address, FatPointerBase);
+
+  int NumElementsInArray = Gep->getPointerOperand()->getType()->getPointerElementType()->getVectorNumElements();
+  Constant *ArrayLength = ConstantInt::get(IntegerType, NumElementsInArray);
+  Value *Bound = B.CreateAdd(ArrayLength, B.CreatePtrToInt(Address, IntegerType));
+
+  B.CreateStore(B.CreateIntToPtr(Bound, Address->getType()), FatPointerBound);
+}
+void Bandage::SetBoundsForMalloc(IRBuilder<> &B, StoreInst *PointerStore){
+  Value *Prev = PointerStore->getValueOperand();
+
+  // Follow through a cast if there is one
+  if(auto BC = dyn_cast<BitCastInst>(Prev))
+    Prev = BC->getOperand(0);
+
+  auto Call = dyn_cast<CallInst>(Prev);
+  if(!Call)
+    return;
+
+  if(Call->getCalledFunction()->getName() != "malloc")
+    return;
+
+  Value* FatPointer = PointerStore->getPointerOperand(); 
+  Value *Address = PointerStore->getValueOperand();
+
+  Value* FatPointerBase = 
+      B.CreateGEP(FatPointer, GetIndices(1, PointerStore->getContext()));
+  B.CreateStore(Address, FatPointerBase);
+
+  Type *IntegerType = IntegerType::getInt64Ty(PointerStore->getContext());
+  Value *Size = Call->getArgOperand(0);
+
+  Value *Bound = B.CreateAdd(
+      B.CreateTruncOrBitCast(Size, IntegerType),
+      B.CreatePtrToInt(Address, IntegerType));
+
+  Value* FatPointerBound = 
+      B.CreateGEP(FatPointer, GetIndices(2, PointerStore->getContext()));
+
+  B.CreateStore(B.CreateIntToPtr(Bound, Address->getType()), FatPointerBound);
 }
 void Bandage::ModifyPointerLoads(std::set<Instruction *> PointerLoads){
   for(auto I: PointerLoads){
@@ -342,11 +398,10 @@ void Bandage::ModifyGeps(std::set<Instruction *> GetElementPtrs){
     CreateBoundsCheck(B, NewGep, Base, Bound);
   }
 }
-
 void Bandage::CreateBoundsCheck(IRBuilder<> &B, Value *Val, Value *Base, Value *Bound){
-  //AddPrint(B, "Value: %p", Val);
-  //AddPrint(B, "Base:  %p", Base);
-  //AddPrint(B, "Bound: %p", Bound);
+  AddPrint(B, "Base:  %p", Base);
+  AddPrint(B, "Value: %p", Val);
+  AddPrint(B, "Bound: %p\n", Bound);
   Type *IntegerType = IntegerType::getInt32Ty(Val->getContext());
   Value *InLowerBound = B.CreateICmpUGE(
       B.CreatePtrToInt(Val, IntegerType),
@@ -376,6 +431,8 @@ void Bandage::CreateBoundsCheck(IRBuilder<> &B, Value *Val, Value *Base, Value *
   B.CreateCall(Print, Str(B, "OutOfBounds"));
   B.CreateBr(PassedBB);
 }
+void Bandage::CreateDuplicatesOfFunctions(std::set<Function *> Functions){
+}
 
 std::vector<Value *> Bandage::GetIndices(int val, LLVMContext& C){
   std::vector<Value *> Idxs;
@@ -383,11 +440,9 @@ std::vector<Value *> Bandage::GetIndices(int val, LLVMContext& C){
   Idxs.push_back(ConstantInt::get(IntegerType::getInt32Ty(C), val));
   return Idxs;
 }
-
 Value* Bandage::Str(IRBuilder<> B, std::string str){
   return B.CreateGlobalStringPtr(StringRef(blue + str + "\n" + reset));
 }
-
 void Bandage::AddPrint(IRBuilder<> B, std::string str, Value *v){
   B.CreateCall2(Print, Str(B, str), v);
 }
