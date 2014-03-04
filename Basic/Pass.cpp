@@ -8,6 +8,7 @@
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
+#include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/InstIterator.h"
 
@@ -46,12 +47,12 @@ struct Bandage : public ModulePass{
     //PrintIrWithHighlight(M, PointerAllocs, PointerStores, PointerLoads);
     //DisplayArrayInformation(ArrayAllocs);
     //DisplayGepInformation(GetElementPtrs);
-    CreateDuplicatesOfFunctions(Functions);
-    ModifyArrayAllocs(ArrayAllocs);
+    CreateDuplicatesOfFunctions(Functions, M);
+    //ModifyArrayAllocs(ArrayAllocs);
     ModifyPointerAllocs(PointerAllocs);
     ModifyPointerStores(PointerStores);
     ModifyPointerLoads(PointerLoads);
-    ModifyGeps(ArrayGeps);
+    //ModifyGeps(ArrayGeps);
 
     return true;
   }
@@ -70,7 +71,7 @@ private:
   void DisplayArrayInformation(std::set<Instruction *> ArrayAllocs);
   void DisplayGepInformation(std::set<Instruction *> GetElementPtrs);
 
-  void CreateDuplicatesOfFunctions(std::set<Function *> Functions);
+  void CreateDuplicatesOfFunctions(std::set<Function *> Functions, Module &M);
   void ModifyGeps(std::set<Instruction *> GetElementPtrs);
   void ModifyArrayAllocs(std::set<Instruction *> ArrayAllocs);
   void ModifyPointerAllocs(std::set<Instruction *> ArrayAllocs);
@@ -205,11 +206,6 @@ void Bandage::ModifyArrayAllocs(std::set<Instruction *> ArrayAllocs){
     Type *IntegerType = IntegerType::getInt32Ty(ArrayAlloc->getContext());
 
     // Construct the type for the fat pointer
-    /*std::vector<Type *> FatPointerMembers;	
-    FatPointerMembers.push_back(ArrayType);
-    FatPointerMembers.push_back(ArrayType);
-    FatPointerMembers.push_back(ArrayType);
-    Type *FatPointerType = StructType::create(FatPointerMembers, "struct.FatPointer");*/
     Type *FatPointerType = FPS->GetFatPointerType(ArrayType);
     Value *FatPointer = B.CreateAlloca(FatPointerType, NULL, "FatPointer");
     ArrayAlloc->replaceAllUsesWith(FatPointer);
@@ -245,11 +241,6 @@ void Bandage::ModifyPointerAllocs(std::set<Instruction *> PointerAllocs){
     Type *PointerType = PointerAlloc->getType()->getPointerElementType();
 
     // Construct the type for the fat pointer
-    /*std::vector<Type *> FatPointerMembers;	
-    FatPointerMembers.push_back(PointerType);
-    FatPointerMembers.push_back(PointerType);
-    FatPointerMembers.push_back(PointerType);
-    Type *FatPointerType = StructType::create(FatPointerMembers, "struct.FatPointer");*/
     Type *FatPointerType = FPS->GetFatPointerType(PointerType);
 
     Value* FatPointer = B.CreateAlloca(FatPointerType, NULL, "fp" + PointerAlloc->getName());
@@ -431,7 +422,63 @@ void Bandage::CreateBoundsCheck(IRBuilder<> &B, Value *Val, Value *Base, Value *
   B.CreateCall(Print, Str(B, "OutOfBounds"));
   B.CreateBr(PassedBB);
 }
-void Bandage::CreateDuplicatesOfFunctions(std::set<Function *> Functions){
+void Bandage::CreateDuplicatesOfFunctions(std::set<Function *> Functions, Module &M){
+  for(auto *F: Functions){
+    // Construct a new parameter list with Fat Pointers instead of Pointers
+    std::vector<Type*> Params;
+    FunctionType *OldFuncType = F->getFunctionType();
+
+    for(int i=0; i<OldFuncType->getNumParams(); i++){
+      /*if(OldFuncType->getParamType(i)->isPointerTy())
+        Params.push_back(FPS->GetFatPointerType(OldFuncType->getParamType(i)));
+      else*/
+        Params.push_back(OldFuncType->getParamType(i));
+    }
+
+    // TODO: Copy over if the function type is VarArg
+    FunctionType *NewFuncType = FunctionType::get(OldFuncType->getReturnType(),
+        Params, false);
+
+    // Again, I'm not sure what linkage to use here
+    Function *NewFunc = Function::Create(NewFuncType, 
+        GlobalValue::LinkageTypes::ExternalLinkage, 
+        F->getName() + ".FP", &M);
+
+    // Iterate through all of the arguments of the original function
+    ValueMap<Value *, Value*> ArgMap;
+    for(auto OldArgI = F->arg_begin(), OldArgE = F->arg_end(),
+       NewArgI = NewFunc->arg_begin(), NewArgE = NewFunc->arg_end();
+       OldArgI != OldArgE; OldArgI++, NewArgI++){
+      ArgMap[OldArgI] = NewArgI;
+    }
+
+    errs() << *NewFunc << "\n";
+
+    for(auto BBI = F->begin(), BBE = F->end(); BBI != BBE; ++BBI){
+      BasicBlock *NewBB = BasicBlock::Create(F->getContext(), "", NewFunc);
+      IRBuilder<> builder(NewBB);
+      for(auto II = BBI->begin(), IE = BBI->end(); II != IE; ++II){
+
+        Instruction *NewInst = II->clone();
+        errs() << *NewInst << "\n";
+        for(int i=0; i<NewInst->getNumOperands(); i++){
+          if(ArgMap.count(NewInst->getOperand(i)))
+            NewInst->setOperand(i, ArgMap[NewInst->getOperand(i)]);
+        }
+
+        ArgMap[II] = NewInst;
+
+        errs() << *NewInst << "\n\n";
+        builder.Insert(NewInst);
+      }
+    } 
+
+    F->replaceAllUsesWith(NewFunc);
+    //errs() << *F << "\n";
+    //errs() << *NewFunc << "\n";
+    // Loop through the basic blocks, replicating them
+    // Replace usages of parameters
+  }
 }
 
 std::vector<Value *> Bandage::GetIndices(int val, LLVMContext& C){
