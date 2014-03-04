@@ -1,4 +1,5 @@
 #include <set>
+#include <map>
 
 #include "llvm/Pass.h"
 #include "llvm/IR/Instructions.h"
@@ -27,27 +28,31 @@ struct Bandage : public ModulePass{
     Print = M.getFunction("printf");
     FPS = new FatPointers();
 
-    std::set<Instruction *> ArrayAllocs = CollectArrayAllocs(M);
+    //std::set<Instruction *> ArrayAllocs = CollectArrayAllocs(M);
     //std::set<Instruction *> GetElementPtrs = CollectGetElementPtrs(M);
-    std::set<Instruction *> PointerAllocs = CollectPointerAllocs(M);
-    std::set<Instruction *> PointerStores = CollectPointerStores(M);
-    std::set<Instruction *> PointerLoads = CollectPointerLoads(M);
 
-    std::set<Instruction *> ArrayGeps;
+    /*std::set<Instruction *> ArrayGeps;
     for(auto Arr: ArrayAllocs){
       for(Value::use_iterator i = Arr->use_begin(), e = Arr->use_end(); i!=e; ++i){
         if(auto Gep = dyn_cast<GetElementPtrInst>(*i)){
           ArrayGeps.insert(Gep);
         }
       }
-    }
+    }*/
 
-    std::set<Function *> Functions = CollectFunctions(M);
+    // Functions contains a map from untransformed functions to transformed ones
+    // main points to itself, as that is the only function not transformed
+    std::map<Function *, Function *> Functions;
+    CollectFunctions(Functions, M);
+    CreateDuplicatesOfFunctions(Functions, M);
+
+    std::set<Instruction *> PointerAllocs = CollectPointerAllocs(Functions);
+    std::set<Instruction *> PointerStores = CollectPointerStores(Functions);
+    std::set<Instruction *> PointerLoads = CollectPointerLoads(Functions);
 
     //PrintIrWithHighlight(M, PointerAllocs, PointerStores, PointerLoads);
     //DisplayArrayInformation(ArrayAllocs);
     //DisplayGepInformation(GetElementPtrs);
-    CreateDuplicatesOfFunctions(Functions, M);
     //ModifyArrayAllocs(ArrayAllocs);
     ModifyPointerAllocs(PointerAllocs);
     ModifyPointerStores(PointerStores);
@@ -63,15 +68,15 @@ private:
 
   std::set<Instruction *> CollectArrayAllocs(Module &M);
   std::set<Instruction *> CollectGetElementPtrs(Module &M);
-  std::set<Instruction *> CollectPointerStores(Module &M);
-  std::set<Instruction *> CollectPointerLoads(Module &M);
-  std::set<Instruction *> CollectPointerAllocs(Module &M);
-  std::set<Function *> CollectFunctions(Module &M);
+  std::set<Instruction *> CollectPointerStores(std::map<Function *, Function *> &Functions);
+  std::set<Instruction *> CollectPointerLoads(std::map<Function *, Function *> &Functions);
+  std::set<Instruction *> CollectPointerAllocs(std::map<Function *, Function *> &Functions);
+  void CollectFunctions(std::map<Function *, Function *> &Functions, Module &M);
 
   void DisplayArrayInformation(std::set<Instruction *> ArrayAllocs);
   void DisplayGepInformation(std::set<Instruction *> GetElementPtrs);
 
-  void CreateDuplicatesOfFunctions(std::set<Function *> Functions, Module &M);
+  void CreateDuplicatesOfFunctions(std::map<Function *, Function *> &Functions, Module &M);
   void ModifyGeps(std::set<Instruction *> GetElementPtrs);
   void ModifyArrayAllocs(std::set<Instruction *> ArrayAllocs);
   void ModifyPointerAllocs(std::set<Instruction *> ArrayAllocs);
@@ -116,10 +121,11 @@ std::set<Instruction *> Bandage::CollectGetElementPtrs(Module &M){
   }
   return GetElementPtrs;
 }
-std::set<Instruction *> Bandage::CollectPointerStores(Module &M){
+std::set<Instruction *> Bandage::CollectPointerStores(std::map<Function *, Function *> &Functions){
   std::set<Instruction *> PointerStores;
 
-  for(auto IF = M.begin(), EF = M.end(); IF != EF; ++IF){
+  for(auto& Pair: Functions){
+    auto IF = Pair.second;
     for(auto II = inst_begin(IF), EI = inst_end(IF); II != EI; ++II){
       if(StoreInst *I = dyn_cast<StoreInst>(&*II)){
         if(!I->getPointerOperand()->getType()->getPointerElementType()->isPointerTy())
@@ -130,10 +136,11 @@ std::set<Instruction *> Bandage::CollectPointerStores(Module &M){
   }
   return PointerStores;
 }
-std::set<Instruction *> Bandage::CollectPointerLoads(Module &M){
+std::set<Instruction *> Bandage::CollectPointerLoads(std::map<Function *, Function *> &Functions){
   std::set<Instruction *> PointerLoads;
 
-  for(auto IF = M.begin(), EF = M.end(); IF != EF; ++IF){
+  for(auto& Pair: Functions){
+    auto IF = Pair.second;
     for(auto II = inst_begin(IF), EI = inst_end(IF); II != EI; ++II){
       if(LoadInst *I = dyn_cast<LoadInst>(&*II)){
         if(!I->getPointerOperand()->getType()->getPointerElementType()->isPointerTy())
@@ -144,10 +151,11 @@ std::set<Instruction *> Bandage::CollectPointerLoads(Module &M){
   }
   return PointerLoads;
 }
-std::set<Instruction *> Bandage::CollectPointerAllocs(Module &M){
+std::set<Instruction *> Bandage::CollectPointerAllocs(std::map<Function *, Function *> &Functions){
   std::set<Instruction *> PointerAllocs;
 
-  for(auto IF = M.begin(), EF = M.end(); IF != EF; ++IF){
+  for(auto& Pair: Functions){
+    auto IF = Pair.second;
     for(auto II = inst_begin(IF), EI = inst_end(IF); II != EI; ++II){
       Instruction *I = &*II;
       if(AllocaInst *I = dyn_cast<AllocaInst>(&*II)){
@@ -159,19 +167,18 @@ std::set<Instruction *> Bandage::CollectPointerAllocs(Module &M){
   }
   return PointerAllocs;
 }
-std::set<Function *> Bandage::CollectFunctions(Module &M){
-  std::set<Function *> Functions;
+void Bandage::CollectFunctions(std::map<Function *, Function *> &Functions, Module &M){
   for(auto IF = M.begin(), EF = M.end(); IF != EF; ++IF){
     Function *F = &*IF;
     // Should this be changed to 'isDeclaration'?
     if(F->empty())
       continue;
-    if(F->getName() == "main")
-      continue;
 
-    Functions.insert(F);
+    if(F->getName() == "main")
+      Functions[F] = F;
+    else
+      Functions[F] = NULL;
   }
-  return Functions;
 }
 
 void Bandage::DisplayArrayInformation(std::set<Instruction *> ArrayAllocs){
@@ -422,8 +429,15 @@ void Bandage::CreateBoundsCheck(IRBuilder<> &B, Value *Val, Value *Base, Value *
   B.CreateCall(Print, Str(B, "OutOfBounds"));
   B.CreateBr(PassedBB);
 }
-void Bandage::CreateDuplicatesOfFunctions(std::set<Function *> Functions, Module &M){
-  for(auto *F: Functions){
+
+void Bandage::CreateDuplicatesOfFunctions(std::map<Function *, Function *> &Functions, Module &M){
+  for(auto& FP: Functions){
+    auto F = FP.first;
+    
+    // Don't duplicate the main function
+    if(FP.first == FP.second)
+      continue;
+
     // Construct a new parameter list with Fat Pointers instead of Pointers
     std::vector<Type*> Params;
     FunctionType *OldFuncType = F->getFunctionType();
@@ -452,15 +466,12 @@ void Bandage::CreateDuplicatesOfFunctions(std::set<Function *> Functions, Module
       ArgMap[OldArgI] = NewArgI;
     }
 
-    errs() << *NewFunc << "\n";
-
     for(auto BBI = F->begin(), BBE = F->end(); BBI != BBE; ++BBI){
       BasicBlock *NewBB = BasicBlock::Create(F->getContext(), "", NewFunc);
       IRBuilder<> builder(NewBB);
       for(auto II = BBI->begin(), IE = BBI->end(); II != IE; ++II){
 
         Instruction *NewInst = II->clone();
-        errs() << *NewInst << "\n";
         for(int i=0; i<NewInst->getNumOperands(); i++){
           if(ArgMap.count(NewInst->getOperand(i)))
             NewInst->setOperand(i, ArgMap[NewInst->getOperand(i)]);
@@ -468,12 +479,12 @@ void Bandage::CreateDuplicatesOfFunctions(std::set<Function *> Functions, Module
 
         ArgMap[II] = NewInst;
 
-        errs() << *NewInst << "\n\n";
         builder.Insert(NewInst);
       }
     } 
 
     F->replaceAllUsesWith(NewFunc);
+    Functions[F] = NewFunc;
     //errs() << *F << "\n";
     //errs() << *NewFunc << "\n";
     // Loop through the basic blocks, replicating them
