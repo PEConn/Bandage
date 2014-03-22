@@ -28,11 +28,13 @@ struct Bandage : public ModulePass{
   Bandage() : ModulePass(ID) {}
 
   virtual bool runOnModule(Module &M) {
+    errs() << "\n\n\n";
     auto *FD = new FunctionDuplicater(M);
     auto *IC = new InstructionCollection(FD->GetFPFunctions(), 
         FD->GetRawFunctions());
     auto *T  = new Transform(IC, FD->RawToFPMap, M);
     T->Apply();
+    errs() << "\n\n\n";
 
     return true;
   }

@@ -12,8 +12,8 @@
 #include "llvm/Support/InstIterator.h"
 
 InstructionCollection::InstructionCollection(std::set<Function *> Functions, std::set<Function *> RawFunctions){
-  CollectInstructions(Functions);
   this->RawFunctions = RawFunctions;
+  CollectInstructions(Functions);
 }
 
 void InstructionCollection::CollectInstructions(std::set<Function *> Functions){

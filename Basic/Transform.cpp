@@ -31,7 +31,7 @@ void Transform::Apply(){
   TransformArrayAllocas();
   TransformArrayGeps();
 
-  //TransformFunctionCalls();
+  TransformFunctionCalls();
 }
 
 void Transform::TransformPointerAllocas(){
@@ -101,6 +101,14 @@ void Transform::TransformPointerLoads(){
     Value* NewLoad = B.CreateLoad(RawPointer);
     PointerLoad->replaceAllUsesWith(NewLoad);
     CreateBoundsCheck(B, B.CreateLoad(RawPointer), Base, Bound);
+    PointerLoad->eraseFromParent();
+  }
+
+  // This is nessecary to get future typing correct
+  for(auto PointerLoad : Instructions->PointerParameterLoads){
+    IRBuilder<> B(PointerLoad);
+    Value* NewLoad = B.CreateLoad(PointerLoad->getPointerOperand());
+    PointerLoad->replaceAllUsesWith(NewLoad);
     PointerLoad->eraseFromParent();
   }
 }
