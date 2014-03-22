@@ -20,7 +20,6 @@
 Transform::Transform(InstructionCollection *Instructions, std::map<Function *, Function *> Map, Module &M){
   this->Instructions = Instructions;
   this->RawToFPFunctionMap = Map;
-  this->FPS = new FatPointers();
   this->DL = new DataLayout(&M);
   this->Print = M.getFunction("printf");
 }
@@ -44,7 +43,7 @@ void Transform::TransformPointerAllocas(){
     Type *PointerType = PointerAlloc->getType()->getPointerElementType();
 
     // Construct the type for the fat pointer
-    Type *FatPointerType = FPS->GetFatPointerType(PointerType);
+    Type *FatPointerType = FatPointers::GetFatPointerType(PointerType);
 
     Value* FatPointer = B.CreateAlloca(FatPointerType, NULL, "fp" + PointerAlloc->getName());
     PointerAlloc->replaceAllUsesWith(FatPointer);
@@ -69,10 +68,14 @@ void Transform::TransformPointerStores(){
     IRBuilder<> B(PointerStore);
 
     Value* FatPointer = PointerStore->getPointerOperand(); 
+    Value *Address = PointerStore->getValueOperand();
+
+    // The types may match up - for example in the case of fat pointer parameters
+    if(Address->getType() == FatPointer->getType()->getPointerElementType())
+      continue;
+
     Value* RawPointer = 
         B.CreateGEP(FatPointer, GetIndices(0, PointerStore->getContext()));
-
-    Value *Address = PointerStore->getValueOperand();
     Instruction *NewStore = B.CreateStore(Address, RawPointer);
 
     B.SetInsertPoint(NewStore);
@@ -111,7 +114,7 @@ void Transform::TransformArrayAllocas(){
     Type *IntegerType = IntegerType::getInt32Ty(ArrayAlloc->getContext());
 
     // Construct the type for the fat pointer
-    Type *FatPointerType = FPS->GetFatPointerType(ArrayType);
+    Type *FatPointerType = FatPointers::GetFatPointerType(ArrayType);
     Value *FatPointer = B.CreateAlloca(FatPointerType, NULL, "FatPointer");
     ArrayAlloc->replaceAllUsesWith(FatPointer);
     // All code below can use the original ArrayAlloc

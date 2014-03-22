@@ -10,7 +10,7 @@ using namespace llvm;
 
 class FunctionDuplicater{
 public:
-  FunctionDuplicater(FatPointers *FPS, Module &M);
+  FunctionDuplicater(Module &M);
 
   std::set<Function *> GetRawFunctions();
   std::set<Function *> GetFPFunctions();
@@ -19,7 +19,7 @@ public:
   // TODO: Make this private with an accessor
   std::map<Function *, Function *> RawToFPMap;
 private:
-  void DuplicateFunctions(FatPointers *FPS, Module &M);
+  void DuplicateFunctions(Module &M);
 
   Function *Main;
   std::set<Function *> RawFunctions;

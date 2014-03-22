@@ -28,7 +28,7 @@ struct Bandage : public ModulePass{
   Bandage() : ModulePass(ID) {}
 
   virtual bool runOnModule(Module &M) {
-    auto *FD = new FunctionDuplicater(new FatPointers(), M);
+    auto *FD = new FunctionDuplicater(M);
     auto *IC = new InstructionCollection(FD->GetFPFunctions(), 
         FD->GetRawFunctions());
     auto *T  = new Transform(IC, FD->RawToFPMap, M);

@@ -7,7 +7,8 @@ clang="/pool/users/pc424/llvm_build/bin/clang"
 echo -en "\033[33m"
 ${clang} -S -emit-llvm ${1%.c}.c -o ${1%.c}.bc
 echo -en "\033[0m"
-${opt} -S -p -bandage ${1%.c}.bc > ${1%.c}_ban.bc
+#${opt} -S -p -bandage ${1%.c}.bc > ${1%.c}_ban.bc
+${opt} -S -bandage ${1%.c}.bc > ${1%.c}_ban.bc
 echo -en "\033[33m"
 ${clang} -S -emit-llvm ${1%.c}.c -o ${1%.c}.bc
 ${llc} ${1%.c}_ban.bc -o ${1%.c}_ban.s

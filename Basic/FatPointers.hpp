@@ -9,9 +9,9 @@ using namespace llvm;
 
 class FatPointers{
 public:
-  Type* GetFatPointerType(Type *PointerType);
+  static Type* GetFatPointerType(Type *PointerType);
 private:
-  std::map<Type *, Type *> FatPointerTypes;
+  static std::map<Type *, Type *> FatPointerTypes;
 };
 
 #endif

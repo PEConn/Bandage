@@ -1,7 +1,10 @@
 #include "FatPointers.hpp"
+#include "llvm/Support/raw_ostream.h"
+
+std::map<Type *, Type *> FatPointers::FatPointerTypes;
 
 Type* FatPointers::GetFatPointerType(Type *PointerType){
-  if(FatPointerTypes.count(PointerType) == 1)
+  if(FatPointers::FatPointerTypes.count(PointerType) == 1)
     return FatPointerTypes[PointerType];
   
   std::vector<Type *> FatPointerMembers;	
@@ -10,6 +13,6 @@ Type* FatPointers::GetFatPointerType(Type *PointerType){
   FatPointerMembers.push_back(PointerType);
   Type *FatPointerType = StructType::create(FatPointerMembers, "struct.FatPointer");
 
-  FatPointerTypes[PointerType] = FatPointerType;
+  FatPointers::FatPointerTypes[PointerType] = FatPointerType;
   return FatPointerType;
 }

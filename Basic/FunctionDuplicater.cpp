@@ -12,7 +12,7 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/InstIterator.h"
 
-FunctionDuplicater::FunctionDuplicater(FatPointers *FPS, Module &M){
+FunctionDuplicater::FunctionDuplicater(Module &M){
   for(auto IF = M.begin(), EF = M.end(); IF != EF; ++IF){
     Function *F = &*IF;
     // Should this be changed to 'isDeclaration'?
@@ -25,10 +25,10 @@ FunctionDuplicater::FunctionDuplicater(FatPointers *FPS, Module &M){
       RawFunctions.insert(F);
   }
 
-  DuplicateFunctions(FPS, M);
+  DuplicateFunctions(M);
 }
 
-void FunctionDuplicater::DuplicateFunctions(FatPointers *FPS, Module &M){
+void FunctionDuplicater::DuplicateFunctions(Module &M){
   for(auto F: RawFunctions){
     // Construct a new parameter list with Fat Pointers instead of Pointers
     std::vector<Type*> Params;
@@ -36,7 +36,7 @@ void FunctionDuplicater::DuplicateFunctions(FatPointers *FPS, Module &M){
 
     for(int i=0; i<OldFuncType->getNumParams(); i++){
       if(OldFuncType->getParamType(i)->isPointerTy())
-        Params.push_back(FPS->GetFatPointerType(OldFuncType->getParamType(i)));
+        Params.push_back(FatPointers::GetFatPointerType(OldFuncType->getParamType(i)));
       else
         Params.push_back(OldFuncType->getParamType(i));
     }

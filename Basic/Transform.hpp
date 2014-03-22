@@ -15,7 +15,6 @@ public:
 private:
   InstructionCollection *Instructions;
   std::map<Function *, Function *> RawToFPFunctionMap;
-  FatPointers *FPS;
 
   DataLayout *DL;
   Function *Print;
