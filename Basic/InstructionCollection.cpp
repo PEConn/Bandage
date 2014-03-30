@@ -11,6 +11,13 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/InstIterator.h"
 
+template <typename T> void RemoveAFromB(std::set<T> &A, std::set<T> &B){
+  std::set<T> I;
+  std::set_difference(B.begin(), B.end(), A.begin(), A.end(),
+      std::inserter(I, I.end()));
+  B = I;
+}
+
 InstructionCollection::InstructionCollection(std::set<Function *> Functions, std::set<Function *> RawFunctions){
   this->RawFunctions = RawFunctions;
   CollectInstructions(Functions);
@@ -28,11 +35,15 @@ void InstructionCollection::CollectInstructions(std::set<Function *> Functions){
       CheckForArrayAlloca(I);
 
       CheckForFunctionCall(I);
+      if(F->getName() != "main")
+        CheckForReturn(I);
     }
   }
 
   AddArrayGeps();
-  RemoveParametersFromPointerLoads();
+  RemoveAFromB(PointerParameterLoads, PointerLoads);
+  RemoveAFromB(PointerReturnLoads, PointerLoads);
+  RemoveAFromB(PointerReturnStores, PointerStores);
 }
 
 void InstructionCollection::CheckForArrayAlloca(Instruction *I){
@@ -76,7 +87,24 @@ void InstructionCollection::CheckForFunctionCall(Instruction *I){
       }
     }
 
-    // Something to do with the function return value here?
+    // Remember the next use of the return value
+    if(C->getNumUses() == 1){
+      if(StoreInst *Store = dyn_cast<StoreInst>(C->use_back()))
+        PointerReturnStores.insert(Store);
+    }
+    assert(C->getNumUses() < 2);
+  }
+}
+void InstructionCollection::CheckForReturn(Instruction *I){
+  if(ReturnInst *R = dyn_cast<ReturnInst>(I)){
+    if(R->getReturnValue() == NULL)
+      return;
+    
+    Returns.insert(R);
+
+    if(LoadInst *L = dyn_cast<LoadInst>(R->getReturnValue())){
+      PointerReturnLoads.insert(L);
+    }
   }
 }
 
@@ -95,12 +123,4 @@ void InstructionCollection::AddArrayGeps(){
         ArrayGeps.insert(Gep);
     }
   }
-}
-void InstructionCollection::RemoveParametersFromPointerLoads(){
-  std::set<LoadInst *> I;
-  std::set_difference(PointerLoads.begin(), PointerLoads.end(),
-      PointerParameterLoads.begin(), PointerParameterLoads.end(),
-      std::inserter(I, I.end()));
-
-  PointerLoads = I;
 }

@@ -31,9 +31,9 @@ FunctionDuplicater::FunctionDuplicater(Module &M){
 void FunctionDuplicater::DuplicateFunctions(Module &M){
   for(auto F: RawFunctions){
     // Construct a new parameter list with Fat Pointers instead of Pointers
-    std::vector<Type*> Params;
     FunctionType *OldFuncType = F->getFunctionType();
 
+    std::vector<Type *> Params;
     for(int i=0; i<OldFuncType->getNumParams(); i++){
       if(OldFuncType->getParamType(i)->isPointerTy())
         Params.push_back(FatPointers::GetFatPointerType(OldFuncType->getParamType(i)));
@@ -41,9 +41,14 @@ void FunctionDuplicater::DuplicateFunctions(Module &M){
         Params.push_back(OldFuncType->getParamType(i));
     }
 
+    Type *ReturnType;
+    if(OldFuncType->getReturnType()->isPointerTy())
+      ReturnType = FatPointers::GetFatPointerType(OldFuncType->getReturnType());
+    else
+      ReturnType = OldFuncType->getReturnType();
+
     // TODO: Copy over if the function type is VarArg
-    FunctionType *NewFuncType = FunctionType::get(OldFuncType->getReturnType(),
-        Params, false);
+    FunctionType *NewFuncType = FunctionType::get(ReturnType, Params, false);
 
     // Again, I'm not sure what linkage to use here
     Function *NewFunc = Function::Create(NewFuncType, 

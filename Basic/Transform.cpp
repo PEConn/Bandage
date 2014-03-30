@@ -32,6 +32,7 @@ void Transform::Apply(){
   TransformArrayGeps();
 
   TransformFunctionCalls();
+  TransformReturns();
 }
 
 void Transform::TransformPointerAllocas(){
@@ -110,6 +111,21 @@ void Transform::TransformPointerLoads(){
     Value* NewLoad = B.CreateLoad(PointerLoad->getPointerOperand());
     PointerLoad->replaceAllUsesWith(NewLoad);
     PointerLoad->eraseFromParent();
+  }
+  for(auto PointerLoad : Instructions->PointerReturnLoads){
+    IRBuilder<> B(PointerLoad);
+    Value* NewLoad = B.CreateLoad(PointerLoad->getPointerOperand());
+    PointerLoad->replaceAllUsesWith(NewLoad);
+    PointerLoad->eraseFromParent();
+  }
+}
+void Transform::TransformReturns(){
+  // This will only be called on returns that return a value
+
+  for(auto Return: Instructions->Returns){
+    IRBuilder<> B(Return);
+    Value *NewReturn = B.CreateRet(Return->getReturnValue());
+    Return->eraseFromParent();
   }
 }
 void Transform::TransformArrayAllocas(){

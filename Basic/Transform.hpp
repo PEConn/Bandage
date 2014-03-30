@@ -26,6 +26,7 @@ private:
   void TransformArrayGeps();
 
   void TransformFunctionCalls();
+  void TransformReturns();
 
   void SetBoundsForConstString(IRBuilder<> &B, StoreInst *PointerStore);
   void SetBoundsForMalloc(IRBuilder<> &B, StoreInst *PointerStore);

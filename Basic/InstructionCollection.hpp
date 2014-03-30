@@ -12,10 +12,13 @@ public:
 
   std::set<AllocaInst *>          PointerAllocas;
   std::set<StoreInst *>           PointerStores;
+  std::set<StoreInst *>           PointerReturnStores;
   std::set<LoadInst *>            PointerLoads;
   std::set<LoadInst *>            PointerParameterLoads;
+  std::set<LoadInst *>            PointerReturnLoads;
 
   std::set<CallInst *>            Calls;
+  std::set<ReturnInst *>          Returns;
 
   std::set<AllocaInst *>          ArrayAllocas;
   std::set<GetElementPtrInst *>   ArrayGeps;
@@ -29,12 +32,12 @@ private:
   void CheckForPointerStore(Instruction *I);
   void CheckForPointerLoad(Instruction *I);
   void CheckForPointerParameter(Instruction *I);
-  void CheckForArrayAlloca(Instruction *I);
+  void CheckForArrayAlloca(Instruction *I); 
 
   void CheckForFunctionCall(Instruction *I);
+  void CheckForReturn(Instruction *I);
 
   void AddArrayGeps();
-  void RemoveParametersFromPointerLoads();
 };
 
 #endif

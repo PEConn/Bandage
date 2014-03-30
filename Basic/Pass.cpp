@@ -29,9 +29,12 @@ struct Bandage : public ModulePass{
 
   virtual bool runOnModule(Module &M) {
     errs() << "\n\n\n";
+    errs() << "Duplicating Functions\n";
     auto *FD = new FunctionDuplicater(M);
+    errs() << "Collecting Instructions\n";
     auto *IC = new InstructionCollection(FD->GetFPFunctions(), 
         FD->GetRawFunctions());
+    errs() << "Transforming\n";
     auto *T  = new Transform(IC, FD->RawToFPMap, M);
     T->Apply();
     errs() << "\n\n\n";
