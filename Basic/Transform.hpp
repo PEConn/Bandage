@@ -18,6 +18,7 @@ private:
 
   DataLayout *DL;
   Function *Print;
+  Module *M;
 
   void TransformPointerAllocas();
   void TransformPointerStores();
@@ -30,8 +31,6 @@ private:
 
   void SetBoundsForConstString(IRBuilder<> &B, StoreInst *PointerStore);
   void SetBoundsForMalloc(IRBuilder<> &B, StoreInst *PointerStore);
-
-  void CreateBoundsCheck(IRBuilder<> &B, Value *Val, Value *Base, Value *Bound);
 
   void AddPrint(IRBuilder<> B, std::string str, Value *v);
 };

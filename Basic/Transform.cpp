@@ -20,6 +20,7 @@
 Transform::Transform(InstructionCollection *Instructions, std::map<Function *, Function *> Map, Module &M){
   this->Instructions = Instructions;
   this->RawToFPFunctionMap = Map;
+  this->M = &M;
   this->DL = new DataLayout(&M);
   this->Print = M.getFunction("printf");
 }
@@ -108,9 +109,9 @@ void Transform::TransformPointerLoads(){
       iter++;
 
       IRBuilder<> B(iter);
-      CreateBoundsCheck(B, Gep, Base, Bound);
+      FatPointers::CreateBoundsCheck(B, Gep, Base, Bound, Print, M);
     } else {
-      CreateBoundsCheck(B, B.CreateLoad(RawPointer), Base, Bound);
+      FatPointers::CreateBoundsCheck(B, B.CreateLoad(RawPointer), Base, Bound, Print, M);
     }
     PointerLoad->replaceAllUsesWith(NewLoad);
     PointerLoad->eraseFromParent();
@@ -208,7 +209,7 @@ void Transform::TransformArrayGeps(){
     Value *Bound = B.CreateLoad(B.CreateInBoundsGEP(FatPointer, 
           GetIndices(2, Gep->getContext())));
 
-    CreateBoundsCheck(B, NewGep, Base, Bound);
+    FatPointers::CreateBoundsCheck(B, NewGep, Base, Bound, Print, M);
   }
 }
 void Transform::SetBoundsForConstString(IRBuilder<> &B, StoreInst *PointerStore){
@@ -268,42 +269,6 @@ void Transform::SetBoundsForMalloc(IRBuilder<> &B, StoreInst *PointerStore){
       B.CreateGEP(FatPointer, GetIndices(2, PointerStore->getContext()));
 
   B.CreateStore(B.CreateIntToPtr(Bound, Address->getType()), FatPointerBound);
-}
-void Transform::CreateBoundsCheck(IRBuilder<> &B, Value *Val, Value *Base, Value *Bound){
-  AddPrint(B, "Base:  %p", Base);
-  AddPrint(B, "Value: %p", Val);
-  AddPrint(B, "Bound: %p\n", Bound);
-  Type *IntegerType = IntegerType::getInt32Ty(Val->getContext());
-  Value *InLowerBound = B.CreateICmpUGE(
-      B.CreatePtrToInt(Val, IntegerType),
-      B.CreatePtrToInt(Base, IntegerType) 
-      );
-  Value *InHigherBound = B.CreateICmpULT(
-      B.CreatePtrToInt(Val, IntegerType),
-      B.CreatePtrToInt(Bound, IntegerType)
-      );
-      
-  Instruction *InBounds = cast<Instruction>(B.CreateAnd(InLowerBound, InHigherBound));
-
-  BasicBlock::iterator iter = BasicBlock::iterator(InBounds);
-  iter++;
-
-  BasicBlock *BeforeBB = InBounds->getParent();
-  BasicBlock *PassedBB = BeforeBB->splitBasicBlock(iter);
-
-  removeTerminator(BeforeBB);
-  BasicBlock *FailedBB = BasicBlock::Create(InBounds->getContext(),
-      "BoundsCheckFailed", BeforeBB->getParent());
-
-  B.SetInsertPoint(BeforeBB);
-  B.CreateCondBr(InBounds, PassedBB, FailedBB);
-
-  B.SetInsertPoint(FailedBB);
-  B.CreateCall(Print, Str(B, "OutOfBounds"));
-  B.CreateBr(PassedBB);
-}
-void Transform::AddPrint(IRBuilder<> B, std::string str, Value *v){
-  B.CreateCall2(Print, Str(B, str), v);
 }
 void Transform::TransformFunctionCalls(){
   for(auto Call : Instructions->Calls){

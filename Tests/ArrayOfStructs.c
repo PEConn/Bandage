@@ -1,6 +1,4 @@
 // RUN: ./runOn.sh ArrayOfStructs | /pool/users/pc424/llvm_build/bin/FileCheck %s
-// RUN: rm ArrayOfStructs.bc ArrayOfStructs_ban.bc ArrayOfStructs_ban.s ArrayOfStructs
-// XFAIL: *
 
 #include <stdio.h>
 
