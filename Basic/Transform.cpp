@@ -100,8 +100,19 @@ void Transform::TransformPointerLoads(){
         B.CreateGEP(FatPointer, GetIndices(2, PointerLoad->getContext())));
 
     Value* NewLoad = B.CreateLoad(RawPointer);
+
+    // If the load is going to by used in a Gep, use the address from the
+    // Gep in the bounds check
+    if(auto Gep = dyn_cast<GetElementPtrInst>(PointerLoad->use_back())){
+      BasicBlock::iterator iter = Gep;
+      iter++;
+
+      IRBuilder<> B(iter);
+      CreateBoundsCheck(B, Gep, Base, Bound);
+    } else {
+      CreateBoundsCheck(B, B.CreateLoad(RawPointer), Base, Bound);
+    }
     PointerLoad->replaceAllUsesWith(NewLoad);
-    CreateBoundsCheck(B, B.CreateLoad(RawPointer), Base, Bound);
     PointerLoad->eraseFromParent();
   }
 
