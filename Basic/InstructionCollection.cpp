@@ -41,9 +41,14 @@ void InstructionCollection::CollectInstructions(std::set<Function *> Functions){
   }
 
   AddArrayGeps();
-  RemoveAFromB(PointerParameterLoads, PointerLoads);
-  RemoveAFromB(PointerReturnLoads, PointerLoads);
-  RemoveAFromB(PointerReturnStores, PointerStores);
+  AddPointerEquals();
+
+  RemoveAFromB(PointerLoadsForParameters, PointerLoads);
+  RemoveAFromB(PointerLoadsForReturn, PointerLoads);
+  RemoveAFromB(PointerStoresFromReturn, PointerStores);
+
+  RemoveAFromB(PointerLoadsForPointerEquals, PointerLoads);
+  RemoveAFromB(PointerStoresFromPointerEquals, PointerStores);
 }
 
 void InstructionCollection::CheckForArrayAlloca(Instruction *I){
@@ -73,6 +78,18 @@ void InstructionCollection::CheckForPointerLoad(Instruction *I){
     PointerLoads.insert(L);
   }
 }
+
+void InstructionCollection::AddPointerEquals(){
+  for(auto L: PointerLoads){
+    if(auto C = dyn_cast<StoreInst>(L->use_back())){
+      if(PointerStores.count(C)){
+        PointerStoresFromPointerEquals.insert(C);
+        PointerLoadsForPointerEquals.insert(L);
+      }
+    }
+  }
+}
+
 void InstructionCollection::CheckForFunctionCall(Instruction *I){
   if(CallInst *C = dyn_cast<CallInst>(I)){
     // Check if this is a transformable function
@@ -83,14 +100,14 @@ void InstructionCollection::CheckForFunctionCall(Instruction *I){
 
     for(int i=0; i<C->getNumArgOperands(); i++){
       if(LoadInst *Inst = dyn_cast<LoadInst>(C->getArgOperand(i))){
-        PointerParameterLoads.insert(Inst);
+        PointerLoadsForParameters.insert(Inst);
       }
     }
 
     // Remember the next use of the return value
     if(C->getNumUses() == 1){
       if(StoreInst *Store = dyn_cast<StoreInst>(C->use_back()))
-        PointerReturnStores.insert(Store);
+        PointerStoresFromReturn.insert(Store);
     }
     assert(C->getNumUses() < 2);
   }
@@ -103,7 +120,7 @@ void InstructionCollection::CheckForReturn(Instruction *I){
     Returns.insert(R);
 
     if(LoadInst *L = dyn_cast<LoadInst>(R->getReturnValue())){
-      PointerReturnLoads.insert(L);
+      PointerLoadsForReturn.insert(L);
     }
   }
 }

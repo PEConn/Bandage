@@ -12,10 +12,12 @@ public:
 
   std::set<AllocaInst *>          PointerAllocas;
   std::set<StoreInst *>           PointerStores;
-  std::set<StoreInst *>           PointerReturnStores;
+  std::set<StoreInst *>           PointerStoresFromReturn;
+  std::set<StoreInst *>           PointerStoresFromPointerEquals;
   std::set<LoadInst *>            PointerLoads;
-  std::set<LoadInst *>            PointerParameterLoads;
-  std::set<LoadInst *>            PointerReturnLoads;
+  std::set<LoadInst *>            PointerLoadsForParameters;
+  std::set<LoadInst *>            PointerLoadsForReturn;
+  std::set<LoadInst *>            PointerLoadsForPointerEquals;
 
   std::set<CallInst *>            Calls;
   std::set<ReturnInst *>          Returns;
@@ -38,6 +40,7 @@ private:
   void CheckForReturn(Instruction *I);
 
   void AddArrayGeps();
+  void AddPointerEquals();
 };
 
 #endif

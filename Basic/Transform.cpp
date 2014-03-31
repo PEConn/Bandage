@@ -106,13 +106,19 @@ void Transform::TransformPointerLoads(){
   }
 
   // This is nessecary to get future typing correct
-  for(auto PointerLoad : Instructions->PointerParameterLoads){
+  for(auto PointerLoad : Instructions->PointerLoadsForParameters){
     IRBuilder<> B(PointerLoad);
     Value* NewLoad = B.CreateLoad(PointerLoad->getPointerOperand());
     PointerLoad->replaceAllUsesWith(NewLoad);
     PointerLoad->eraseFromParent();
   }
-  for(auto PointerLoad : Instructions->PointerReturnLoads){
+  for(auto PointerLoad : Instructions->PointerLoadsForReturn){
+    IRBuilder<> B(PointerLoad);
+    Value* NewLoad = B.CreateLoad(PointerLoad->getPointerOperand());
+    PointerLoad->replaceAllUsesWith(NewLoad);
+    PointerLoad->eraseFromParent();
+  }
+  for(auto PointerLoad : Instructions->PointerLoadsForPointerEquals){
     IRBuilder<> B(PointerLoad);
     Value* NewLoad = B.CreateLoad(PointerLoad->getPointerOperand());
     PointerLoad->replaceAllUsesWith(NewLoad);
