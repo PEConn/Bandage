@@ -55,30 +55,16 @@ void FunctionDuplicater::DuplicateFunctions(Module &M){
         GlobalValue::LinkageTypes::ExternalLinkage, 
         F->getName() + ".FP", &M);
 
-    // Iterate through all of the arguments of the original function
-    ValueMap<Value *, Value*> ArgMap;
+
+    ValueToValueMapTy VMap;
     for(auto OldArgI = F->arg_begin(), OldArgE = F->arg_end(),
        NewArgI = NewFunc->arg_begin(), NewArgE = NewFunc->arg_end();
        OldArgI != OldArgE; OldArgI++, NewArgI++){
-      ArgMap[OldArgI] = NewArgI;
+      VMap[OldArgI] = NewArgI;
     }
-
-    for(auto BBI = F->begin(), BBE = F->end(); BBI != BBE; ++BBI){
-      BasicBlock *NewBB = BasicBlock::Create(F->getContext(), "", NewFunc);
-      IRBuilder<> builder(NewBB);
-      for(auto II = BBI->begin(), IE = BBI->end(); II != IE; ++II){
-
-        Instruction *NewInst = II->clone();
-        for(int i=0; i<NewInst->getNumOperands(); i++){
-          if(ArgMap.count(NewInst->getOperand(i)))
-            NewInst->setOperand(i, ArgMap[NewInst->getOperand(i)]);
-        }
-
-        ArgMap[II] = NewInst;
-
-        builder.Insert(NewInst);
-      }
-    } 
+    SmallVector<ReturnInst *, 5> Returns;
+    CloneFunctionInto(NewFunc, F, VMap, true, Returns, "FatPointer", 
+        NULL, NULL, NULL);
 
     FPFunctions.insert(NewFunc);
     RawToFPMap[F] = NewFunc;
