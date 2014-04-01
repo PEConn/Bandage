@@ -152,11 +152,11 @@ void Transform::TransformArrayAllocas(){
     iter++;
     IRBuilder<> B(iter);
 
-    Type *ArrayType = ArrayAlloc->getType();
+    Type *PointerType = ArrayAlloc->getType()->getArrayElementType()->getArrayElementType()->getPointerTo();
     Type *IntegerType = IntegerType::getInt32Ty(ArrayAlloc->getContext());
 
     // Construct the type for the fat pointer
-    Type *FatPointerType = FatPointers::GetFatPointerType(ArrayType);
+    Type *FatPointerType = FatPointers::GetFatPointerType(PointerType);
     Value *FatPointer = B.CreateAlloca(FatPointerType, NULL, "FatPointer");
     ArrayAlloc->replaceAllUsesWith(FatPointer);
     // All code below can use the original ArrayAlloc
@@ -169,7 +169,7 @@ void Transform::TransformArrayAllocas(){
     Value *FatPointerBase = B.CreateGEP(FatPointer, BaseIdx);
     Value *FatPointerBound = B.CreateGEP(FatPointer, LengthIdx);
 
-    Value *Address = ArrayAlloc;
+    Value *Address = B.CreatePointerCast(ArrayAlloc, PointerType);
     B.CreateStore(Address, FatPointerValue);
     B.CreateStore(Address, FatPointerBase);
 
@@ -186,13 +186,18 @@ void Transform::TransformArrayGeps(){
   for(auto Gep : Instructions->ArrayGeps){
     IRBuilder<> B(Gep);
 
-    Value* FatPointer = Gep->getPointerOperand(); 
-    Value* RawPointer = B.CreateLoad(
+    Value *FatPointer = Gep->getPointerOperand(); 
+    Value *RawPointer = B.CreateLoad(
         B.CreateGEP(FatPointer, GetIndices(0, Gep->getContext())));
+    Value *Base = B.CreateLoad(
+        B.CreateGEP(FatPointer, GetIndices(1, Gep->getContext())));
+    Value *Bound = B.CreateLoad(
+        B.CreateGEP(FatPointer, GetIndices(2, Gep->getContext())));
 
     std::vector<Value *> IdxList;
     for(auto Idx = Gep->idx_begin(), EIdx = Gep->idx_end(); Idx != EIdx; ++Idx)
-      IdxList.push_back(*Idx); 
+      if(Idx != Gep->idx_begin())
+        IdxList.push_back(*Idx); 
 
     Instruction *NewGep = GetElementPtrInst::Create(RawPointer, IdxList);
 
@@ -203,11 +208,6 @@ void Transform::TransformArrayGeps(){
     iter = BasicBlock::iterator(NewGep);
     iter++;
     B.SetInsertPoint(iter);
-
-    Value *Base = B.CreateLoad(B.CreateInBoundsGEP(FatPointer, 
-          GetIndices(1, Gep->getContext())));
-    Value *Bound = B.CreateLoad(B.CreateInBoundsGEP(FatPointer, 
-          GetIndices(2, Gep->getContext())));
 
     FatPointers::CreateBoundsCheck(B, NewGep, Base, Bound, Print, M);
   }

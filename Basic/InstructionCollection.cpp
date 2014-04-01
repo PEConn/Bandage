@@ -136,8 +136,9 @@ void InstructionCollection::CheckForPointerAlloca(Instruction *I){
 void InstructionCollection::AddArrayGeps(){
   for(auto Arr: ArrayAllocas){
     for(Value::use_iterator i = Arr->use_begin(), e = Arr->use_end(); i!=e; ++i){
-      if(auto Gep = dyn_cast<GetElementPtrInst>(*i))
+      if(auto Gep = dyn_cast<GetElementPtrInst>(*i)){
         ArrayGeps.insert(Gep);
+      }
     }
   }
 }
