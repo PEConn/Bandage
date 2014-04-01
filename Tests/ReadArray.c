@@ -1,5 +1,4 @@
 // RUN: ./runOn.sh ReadArray | /pool/users/pc424/llvm_build/bin/FileCheck %s
-// RUN: rm ReadArray.bc ReadArray_ban.bc ReadArray_ban.s ReadArray
 
 #include <stdio.h>
 
