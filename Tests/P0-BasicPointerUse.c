@@ -1,5 +1,4 @@
-// RUN: ./runOn.sh BasicPointerUse | /pool/users/pc424/llvm_build/bin/FileCheck %s
-// RUN: rm BasicPointerUse.bc BasicPointerUse_ban.bc BasicPointerUse_ban.s BasicPointerUse
+// RUN: ./runOn.sh %s | FileCheck %s
 
 #include <stdio.h>
 #include <stdlib.h>

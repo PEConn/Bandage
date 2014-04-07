@@ -1,14 +1,17 @@
-// RUN: ./runOn.sh PointerEquals | /pool/users/pc424/llvm_build/bin/FileCheck %s
+// RUN: ./runOn.sh %s | FileCheck %s
 #include <stdio.h>
 #include <stdlib.h>
+
+char* Func(char* x){
+  return x;
+}
 
 int main(){
   printf("Clean\n");
   // CHECK: Clean
 
-  char *w = "bat";
-  char *word = w;
-
+  char *word = "bat";
+  word = Func(word);
   printf("%c\n", *word);
   // CHECK-NOT: OutOfBounds
 

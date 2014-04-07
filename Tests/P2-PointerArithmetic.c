@@ -1,5 +1,4 @@
-// RUN: ./runOn.sh PointerArithmetic | /pool/users/pc424/llvm_build/bin/FileCheck %s
-// RUN: rm PointerArithmetic.bc PointerArithmetic_ban.bc PointerArithmetic_ban.s PointerArithmetic
+// RUN: ./runOn.sh %s | FileCheck %s
 #include <stdio.h>
 #include <stdlib.h>
 

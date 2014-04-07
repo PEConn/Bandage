@@ -1,16 +1,15 @@
-// RUN: ./runOn.sh FunctionParameters | /pool/users/pc424/llvm_build/bin/FileCheck %s
+// RUN: ./runOn.sh %s | FileCheck %s
 
 #include <stdio.h>
 #include <stdlib.h>
 
-void PrintInt(int *x){
-  printf("%d\n", *x);
+void PrintInt(int[] x){
+  printf("%d\n", x[0]);
 }
 
 int main(){
-  int *x;
-  x = malloc(sizeof(int));
-  *x = 74;
+  int x[1];
+  x[0] = 74;
   printf("Clean\n");
   // CHECK: Clean
 
@@ -21,6 +20,5 @@ int main(){
   printf("End\n");
   // CHECK: End
 
-  free(x);
 	return 0;
 }

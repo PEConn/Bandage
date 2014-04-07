@@ -1,4 +1,4 @@
-// RUN: ./runOn.sh FunctionReturns | /pool/users/pc424/llvm_build/bin/FileCheck %s
+// RUN: ./runOn.sh %s | FileCheck %s
 
 #include <stdio.h>
 #include <stdlib.h>
