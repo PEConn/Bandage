@@ -1,1 +1,1 @@
-${LIT} .
+llvm-lit .
