@@ -14,19 +14,17 @@ Type* FatPointers::GetFatPointerType(Type *PointerType){
   FatPointerMembers.push_back(PointerType);
   FatPointerMembers.push_back(PointerType);
   FatPointerMembers.push_back(PointerType);
-  Type *FatPointerType = StructType::create(FatPointerMembers, "struct.FatPointer");
+  Type *FatPointerType = StructType::create(FatPointerMembers, "FatPointer");
 
   FatPointers::FatPointerTypes[PointerType] = FatPointerType;
   return FatPointerType;
 }
-
 void FatPointers::CreateBoundsCheck(IRBuilder<> &B, Value *Val, Value *Base, Value *Bound, Function *Print, Module *M){
   if(BoundsChecks.count(Val->getType()) == 0)
     CreateBoundsCheckFunction(Val->getType(), Print, M);
 
   B.CreateCall3(BoundsChecks[Val->getType()], Val, Base, Bound);
 }
-
 void FatPointers::CreateBoundsCheckFunction(Type *PointerType, Function *Print, Module *M){
   std::vector<Type *> ParamTypes;
   ParamTypes.push_back(PointerType);
@@ -50,9 +48,9 @@ void FatPointers::CreateBoundsCheckFunction(Type *PointerType, Function *Print, 
       "main", BoundsCheck);
   IRBuilder<> B(Main);
 
-  B.CreateCall2(Print, Str(B, "Base:  %p"), Base);
+  /*B.CreateCall2(Print, Str(B, "Base:  %p"), Base);
   B.CreateCall2(Print, Str(B, "Value: %p"), Val);
-  B.CreateCall2(Print, Str(B, "Bound: %p"), Bound);
+  B.CreateCall2(Print, Str(B, "Bound: %p"), Bound);*/
 
   Type *IntegerType = IntegerType::getInt32Ty(Val->getContext());
   Value *InLowerBound = B.CreateICmpUGE(

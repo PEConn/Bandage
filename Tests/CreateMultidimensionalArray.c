@@ -7,6 +7,8 @@ int main(){
 
   int arr2[5][4][3][2];
 
+  int arr3[4];
+
   printf("Done\n");
   // CHECK: Done
 

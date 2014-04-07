@@ -147,69 +147,51 @@ void Transform::TransformReturns(){
   }
 }
 void Transform::TransformArrayAllocas(){
-  for(auto ArrayAlloc : Instructions->ArrayAllocas){
-    BasicBlock::iterator iter = ArrayAlloc;
-    iter++;
-    IRBuilder<> B(iter);
-
-    Type *PointerType = ArrayAlloc->getType()->getArrayElementType()->getArrayElementType()->getPointerTo();
-    Type *IntegerType = IntegerType::getInt32Ty(ArrayAlloc->getContext());
-
-    // Construct the type for the fat pointer
-    Type *FatPointerType = FatPointers::GetFatPointerType(PointerType);
-    Value *FatPointer = B.CreateAlloca(FatPointerType, NULL, "FatPointer");
-    ArrayAlloc->replaceAllUsesWith(FatPointer);
-    // All code below can use the original ArrayAlloc
-
-    // Initialize the values
-    std::vector<Value *> ValueIdx = GetIndices(0, ArrayAlloc->getContext());
-    std::vector<Value *> BaseIdx = GetIndices(1, ArrayAlloc->getContext());
-    std::vector<Value *> LengthIdx = GetIndices(2, ArrayAlloc->getContext());
-    Value *FatPointerValue = B.CreateGEP(FatPointer, ValueIdx);
-    Value *FatPointerBase = B.CreateGEP(FatPointer, BaseIdx);
-    Value *FatPointerBound = B.CreateGEP(FatPointer, LengthIdx);
-
-    Value *Address = B.CreatePointerCast(ArrayAlloc, PointerType);
-    B.CreateStore(Address, FatPointerValue);
-    B.CreateStore(Address, FatPointerBase);
-
-    Constant *ArrayLength = ConstantInt::get(IntegerType,
-        GetNumElementsInArray(ArrayAlloc) * GetArrayElementSizeInBits(ArrayAlloc, DL)/8);
-
-    Value *Bound = B.CreateAdd(ArrayLength, B.CreatePtrToInt(Address, IntegerType));
-
-    B.CreateStore(B.CreateIntToPtr(Bound, Address->getType()), FatPointerBound);
-  }
-
 }
 void Transform::TransformArrayGeps(){
   for(auto Gep : Instructions->ArrayGeps){
+    LLVMContext *C = &Gep->getContext();
     IRBuilder<> B(Gep);
-
-    Value *FatPointer = Gep->getPointerOperand(); 
-    Value *RawPointer = B.CreateLoad(
-        B.CreateGEP(FatPointer, GetIndices(0, Gep->getContext())));
-    Value *Base = B.CreateLoad(
-        B.CreateGEP(FatPointer, GetIndices(1, Gep->getContext())));
-    Value *Bound = B.CreateLoad(
-        B.CreateGEP(FatPointer, GetIndices(2, Gep->getContext())));
-
-    std::vector<Value *> IdxList;
-    for(auto Idx = Gep->idx_begin(), EIdx = Gep->idx_end(); Idx != EIdx; ++Idx)
-      if(Idx != Gep->idx_begin())
-        IdxList.push_back(*Idx); 
-
-    Instruction *NewGep = GetElementPtrInst::Create(RawPointer, IdxList);
-
     BasicBlock::iterator iter(Gep);
-    ReplaceInstWithInst(Gep->getParent()->getInstList(), iter, NewGep);
 
-    // Now add checking after the Gep Instruction
-    iter = BasicBlock::iterator(NewGep);
-    iter++;
-    B.SetInsertPoint(iter);
+    // Create Basic Blocks
+    BasicBlock *BeforeCheck = Gep->getParent();
+    BasicBlock *AfterCheck = BeforeCheck->splitBasicBlock(iter);
+    BasicBlock *FailedCheck = BasicBlock::Create(*C,
+        "BoundsCheckFailed", BeforeCheck->getParent());
 
-    FatPointers::CreateBoundsCheck(B, NewGep, Base, Bound, Print, M);
+    removeTerminator(BeforeCheck);
+
+    B.SetInsertPoint(BeforeCheck);
+
+    // Create check
+    Value *Passing = NULL;
+    Type *IntType = Type::getInt64Ty(*C);
+    auto CurrentGep = Gep;
+    while(true){
+      Type *ArrayType = Gep->getPointerOperand()->getType()->getPointerElementType();
+      Constant *Len = ConstantInt::get(IntType, ArrayType->getVectorNumElements());
+      
+      auto Idx = Gep->idx_begin();
+      Idx++;
+      Value *Offset = *Idx;
+
+      Value *Test= B.CreateICmpULT(Offset, Len);
+      Passing = (Passing == NULL ? Test : B.CreateAnd(Test, Passing));
+
+      if(auto NextGep = dyn_cast<GetElementPtrInst>(Gep->use_back()))
+        Gep = NextGep;
+      else
+        break;
+    }
+
+    B.CreateCondBr(Passing, AfterCheck, FailedCheck);
+
+    B.SetInsertPoint(FailedCheck);
+    B.CreateCall(Print, Str(B, "OutOfBounds"));
+    B.CreateBr(AfterCheck);
+
+    B.SetInsertPoint(AfterCheck);
   }
 }
 void Transform::SetBoundsForConstString(IRBuilder<> &B, StoreInst *PointerStore){
