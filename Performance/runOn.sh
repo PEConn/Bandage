@@ -1,8 +1,8 @@
 #! /bin/bash
 
-opt="/pool/users/pc424/llvm_build/bin/opt -load ../../Bandage_build/Basic/LLVMBandage.so"
-llc="/pool/users/pc424/llvm_build/bin/llc"
-clang="/pool/users/pc424/llvm_build/bin/clang"
+opt="opt -load ../../Bandage_build/Basic/LLVMBandage.so"
+llc="llc"
+clang="clang"
 
 time="/usr/bin/time"
 
