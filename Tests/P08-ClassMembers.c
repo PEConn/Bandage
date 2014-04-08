@@ -3,16 +3,17 @@
 #include <stdlib.h>
 
 typedef struct Point{
-  float x;
-  float y;
-  float z;
+  int x;
+  int y;
+  int z;
 } Point;
 
 int main(){
-  Point *a;
-  a->x = 1f;
-  a->y = 2f;
-  a->z = 0f;
+  Point *a = malloc(sizeof(Point));
+  a->x = 1;
+  a->y = 2;
+  a->z = 0;
+  free(a);
 
   printf("Compiles\n");
   // CHECK: Compiles

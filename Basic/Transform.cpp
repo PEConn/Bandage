@@ -102,6 +102,7 @@ void Transform::TransformPointerLoads(){
 
     Value* NewLoad = B.CreateLoad(RawPointer);
 
+    Type* VoidPtrType = Type::getInt8Ty(PointerLoad->getContext())->getPointerTo();
     // If the load is going to by used in a Gep, use the address from the
     // Gep in the bounds check
     if(auto Gep = dyn_cast<GetElementPtrInst>(PointerLoad->use_back())){
@@ -109,9 +110,15 @@ void Transform::TransformPointerLoads(){
       iter++;
 
       IRBuilder<> B(iter);
-      FatPointers::CreateBoundsCheck(B, Gep, Base, Bound, Print, M);
+      FatPointers::CreateBoundsCheck(B, 
+          B.CreatePointerCast(Gep, VoidPtrType), 
+          B.CreatePointerCast(Base, VoidPtrType), 
+          B.CreatePointerCast(Bound, VoidPtrType), Print, M);
     } else {
-      FatPointers::CreateBoundsCheck(B, B.CreateLoad(RawPointer), Base, Bound, Print, M);
+      FatPointers::CreateBoundsCheck(B, 
+          B.CreatePointerCast(B.CreateLoad(RawPointer), VoidPtrType), 
+          B.CreatePointerCast(Base, VoidPtrType),
+          B.CreatePointerCast(Bound, VoidPtrType), Print, M);
     }
     PointerLoad->replaceAllUsesWith(NewLoad);
     PointerLoad->eraseFromParent();
