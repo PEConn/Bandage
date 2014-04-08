@@ -8,7 +8,7 @@ using namespace llvm;
 
 class InstructionCollection{
 public:
-  InstructionCollection(std::set<Function *> Functions, std::set<Function *> RawFunctions);
+  InstructionCollection(std::set<Function *> Functions, std::set<Function *> RawFunctions, std::set<StructType *> FPStructs);
 
   std::set<AllocaInst *>          PointerAllocas;
   std::set<StoreInst *>           PointerStores;
@@ -25,8 +25,11 @@ public:
   std::set<AllocaInst *>          ArrayAllocas;
   std::set<GetElementPtrInst *>   ArrayGeps;
 
+  std::set<GetElementPtrInst *>   StructGeps;
+
 private:
   std::set<Function *> RawFunctions;
+  std::set<StructType *> FPStructs;
 
   void CollectInstructions(std::set<Function *> Functions);
 
@@ -35,6 +38,7 @@ private:
   void CheckForPointerLoad(Instruction *I);
   void CheckForPointerParameter(Instruction *I);
   void CheckForArrayAlloca(Instruction *I); 
+  void CheckForStructGep(Instruction *I);
 
   void CheckForFunctionCall(Instruction *I);
   void CheckForReturn(Instruction *I);

@@ -12,7 +12,7 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/InstIterator.h"
 
-FunctionDuplicater::FunctionDuplicater(Module &M){
+FunctionDuplicater::FunctionDuplicater(Module &M, TypeDuplicater *TD){
   for(auto IF = M.begin(), EF = M.end(); IF != EF; ++IF){
     Function *F = &*IF;
     // Should this be changed to 'isDeclaration'?
@@ -21,28 +21,29 @@ FunctionDuplicater::FunctionDuplicater(Module &M){
 
     if(F->getName() == "main")
       Main = F;
-    else
-      RawFunctions.insert(F);
+
+    RawFunctions.insert(F);
   }
 
-  DuplicateFunctions(M);
+  DuplicateFunctions(M, TD);
+  RenameMain();
 }
 
-void FunctionDuplicater::DuplicateFunctions(Module &M){
+void FunctionDuplicater::DuplicateFunctions(Module &M, TypeDuplicater *TD){
   for(auto F: RawFunctions){
     // Construct a new parameter list with Fat Pointers instead of Pointers
     FunctionType *OldFuncType = F->getFunctionType();
 
     std::vector<Type *> Params;
     for(int i=0; i<OldFuncType->getNumParams(); i++){
-      if(OldFuncType->getParamType(i)->isPointerTy())
+      if(OldFuncType->getParamType(i)->isPointerTy() && F != Main)
         Params.push_back(FatPointers::GetFatPointerType(OldFuncType->getParamType(i)));
       else
         Params.push_back(OldFuncType->getParamType(i));
     }
 
     Type *ReturnType;
-    if(OldFuncType->getReturnType()->isPointerTy())
+    if(OldFuncType->getReturnType()->isPointerTy() && F != Main)
       ReturnType = FatPointers::GetFatPointerType(OldFuncType->getReturnType());
     else
       ReturnType = OldFuncType->getReturnType();
@@ -64,20 +65,22 @@ void FunctionDuplicater::DuplicateFunctions(Module &M){
     }
     SmallVector<ReturnInst *, 5> Returns;
     CloneFunctionInto(NewFunc, F, VMap, true, Returns, "FatPointer", 
-        NULL, NULL, NULL);
+        NULL, TD, NULL);
 
     FPFunctions.insert(NewFunc);
     RawToFPMap[F] = NewFunc;
   }
+}
+void FunctionDuplicater::RenameMain(){
+  RawToFPMap[Main]->takeName(Main);
+  Main->setName("oldmain");
 }
 
 std::set<Function *> FunctionDuplicater::GetRawFunctions(){
   return RawFunctions;
 }
 std::set<Function *> FunctionDuplicater::GetFPFunctions(){
-  std::set<Function *> FPAndMain = FPFunctions;
-  FPAndMain.insert(Main);
-  return FPAndMain;
+  return FPFunctions;
 }
 Function *FunctionDuplicater::GetFPVersion(Function *F){
   return RawToFPMap[F];

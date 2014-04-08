@@ -7,9 +7,10 @@ typedef struct Pointless{
 } Pointless;
 
 int main(){
-  Pointless *a = malloc(sizeof(Pointless));
-  Pointless *a->p = malloc(sizeof(Pointless));
-  Pointless *a->p->p = malloc(sizeof(Pointless));
+  Pointless *a;
+  a = malloc(sizeof(Pointless));
+  a->p = malloc(sizeof(Pointless));
+  a->p->p = malloc(sizeof(Pointless));
 
   printf("Compiles\n");
   // CHECK: Compiles

@@ -29,6 +29,8 @@ private:
   void TransformFunctionCalls();
   void TransformReturns();
 
+  void RecreateStructGeps();
+
   void SetBoundsForConstString(IRBuilder<> &B, StoreInst *PointerStore);
   void SetBoundsForMalloc(IRBuilder<> &B, StoreInst *PointerStore);
 

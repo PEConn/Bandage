@@ -1,5 +1,6 @@
 #include "FatPointers.hpp"
 #include "Helpers.hpp"
+#include <string>
 #include "llvm/IR/Function.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -14,7 +15,15 @@ Type* FatPointers::GetFatPointerType(Type *PointerType){
   FatPointerMembers.push_back(PointerType);
   FatPointerMembers.push_back(PointerType);
   FatPointerMembers.push_back(PointerType);
-  Type *FatPointerType = StructType::create(FatPointerMembers, "FatPointer");
+
+  std::string Name = "FatPointer";
+  // Give the struct a nice name - this assumes that structs are named
+  // "struct.StructureName"
+  if(StructType *ST = dyn_cast<StructType>(PointerType->getPointerElementType())){
+    if(ST->hasName())
+      Name += ST->getName().str().substr(6);
+  }
+  Type *FatPointerType = StructType::create(FatPointerMembers, Name);
 
   FatPointers::FatPointerTypes[PointerType] = FatPointerType;
   return FatPointerType;

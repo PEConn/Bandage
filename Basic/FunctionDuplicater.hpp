@@ -5,12 +5,13 @@
 #include <map>
 #include "llvm/IR/Module.h"
 #include "FatPointers.hpp"
+#include "TypeDuplicater.hpp"
 
 using namespace llvm;
 
 class FunctionDuplicater{
 public:
-  FunctionDuplicater(Module &M);
+  FunctionDuplicater(Module &M, TypeDuplicater *TD);
 
   std::set<Function *> GetRawFunctions();
   std::set<Function *> GetFPFunctions();
@@ -19,7 +20,8 @@ public:
   // TODO: Make this private with an accessor
   std::map<Function *, Function *> RawToFPMap;
 private:
-  void DuplicateFunctions(Module &M);
+  void DuplicateFunctions(Module &M, TypeDuplicater *TD);
+  void RenameMain();
 
   Function *Main;
   std::set<Function *> RawFunctions;

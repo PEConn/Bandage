@@ -13,9 +13,11 @@
 #include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/InstIterator.h"
+#include "llvm/Analysis/FindUsedTypes.h"
 
 #include "Helpers.hpp"
 #include "FunctionDuplicater.hpp"
+#include "TypeDuplicater.hpp"
 #include "InstructionCollection.hpp"
 #include "Transform.hpp"
 #include "FatPointers.hpp"
@@ -29,17 +31,22 @@ struct Bandage : public ModulePass{
 
   virtual bool runOnModule(Module &M) {
     errs() << "\n\n\n";
+    errs() << "Duplicating Types\n";
+    auto *TD = new TypeDuplicater(M,  &getAnalysis<FindUsedTypes>());
     errs() << "Duplicating Functions\n";
-    auto *FD = new FunctionDuplicater(M);
+    auto *FD = new FunctionDuplicater(M, TD);
     errs() << "Collecting Instructions\n";
     auto *IC = new InstructionCollection(FD->GetFPFunctions(), 
-        FD->GetRawFunctions());
+        FD->GetRawFunctions(), TD->GetFPTypes());
     errs() << "Transforming\n";
     auto *T  = new Transform(IC, FD->RawToFPMap, M);
     T->Apply();
     errs() << "\n\n\n";
 
     return true;
+  }
+  virtual void getAnalysisUsage(AnalysisUsage &AU) const { 
+    AU.addRequired<FindUsedTypes>();
   }
 };
 }

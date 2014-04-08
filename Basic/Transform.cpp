@@ -26,6 +26,7 @@ Transform::Transform(InstructionCollection *Instructions, std::map<Function *, F
 }
 
 void Transform::Apply(){
+  RecreateStructGeps();
   TransformPointerAllocas();
   TransformPointerStores();
   TransformPointerLoads();
@@ -146,7 +147,6 @@ void Transform::TransformPointerLoads(){
 }
 void Transform::TransformReturns(){
   // This will only be called on returns that return a value
-
   for(auto Return: Instructions->Returns){
     IRBuilder<> B(Return);
     Value *NewReturn = B.CreateRet(Return->getReturnValue());
@@ -274,5 +274,20 @@ void Transform::TransformFunctionCalls(){
     // -- Replace the old call with the new one
     Call->replaceAllUsesWith(NewCall);
     Call->eraseFromParent();
+  }
+}
+
+void Transform::RecreateStructGeps(){
+  // This needs to be before Transform Pointer Loads
+  for(auto Gep: Instructions->StructGeps){
+    IRBuilder<> B(Gep);
+
+    std::vector<Value *> Indices;
+    for(auto I=Gep->idx_begin(), E=Gep->idx_end(); I != E; ++I)
+      Indices.push_back(*I);
+
+    Value *NewGep = B.CreateGEP(Gep->getPointerOperand(), Indices);
+    Gep->replaceAllUsesWith(NewGep);
+    Gep->eraseFromParent();
   }
 }

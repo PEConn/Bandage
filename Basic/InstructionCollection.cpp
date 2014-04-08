@@ -18,8 +18,9 @@ template <typename T> void RemoveAFromB(std::set<T> &A, std::set<T> &B){
   B = I;
 }
 
-InstructionCollection::InstructionCollection(std::set<Function *> Functions, std::set<Function *> RawFunctions){
+InstructionCollection::InstructionCollection(std::set<Function *> Functions, std::set<Function *> RawFunctions, std::set<StructType *> FPStructs){
   this->RawFunctions = RawFunctions;
+  this->FPStructs = FPStructs;
   CollectInstructions(Functions);
 }
 
@@ -33,6 +34,8 @@ void InstructionCollection::CollectInstructions(std::set<Function *> Functions){
       CheckForPointerLoad(I);
 
       CheckForArrayAlloca(I);
+
+      CheckForStructGep(I);
 
       CheckForFunctionCall(I);
       if(F->getName() != "main")
@@ -76,6 +79,14 @@ void InstructionCollection::CheckForPointerLoad(Instruction *I){
       return;
 
     PointerLoads.insert(L);
+  }
+}
+void InstructionCollection::CheckForStructGep(Instruction *I){
+  if(auto G = dyn_cast<GetElementPtrInst>(I)){
+    Type *T = G->getPointerOperand()->getType()->getPointerElementType();
+    if(auto *ST = dyn_cast<StructType>(T))
+      if(FPStructs.count(ST))
+        StructGeps.insert(G);
   }
 }
 
