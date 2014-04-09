@@ -33,6 +33,7 @@ private:
 
   void SetBoundsForConstString(IRBuilder<> &B, StoreInst *PointerStore);
   void SetBoundsForMalloc(IRBuilder<> &B, StoreInst *PointerStore);
+  void SetBoundsOnFree(Instruction *Next, Value *FatPointer);
 
   void AddPrint(IRBuilder<> B, std::string str, Value *v);
 };

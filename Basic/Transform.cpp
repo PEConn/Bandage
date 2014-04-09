@@ -105,7 +105,7 @@ void Transform::TransformPointerLoads(){
     Value* NewLoad = B.CreateLoad(RawPointer);
 
     Type* VoidPtrType = Type::getInt8Ty(PointerLoad->getContext())->getPointerTo();
-    // If the load is going to by used in a Gep, use the address from the
+    // If the load is going to be used in a Gep, use the address from the
     // Gep in the bounds check
     if(auto Gep = dyn_cast<GetElementPtrInst>(PointerLoad->use_back())){
       BasicBlock::iterator iter = Gep;
@@ -122,6 +122,9 @@ void Transform::TransformPointerLoads(){
           B.CreatePointerCast(Base, VoidPtrType),
           B.CreatePointerCast(Bound, VoidPtrType), Print, M);
     }
+
+    SetBoundsOnFree(PointerLoad->use_back(), FatPointer);
+
     PointerLoad->replaceAllUsesWith(NewLoad);
     PointerLoad->eraseFromParent();
   }
@@ -259,6 +262,27 @@ void Transform::SetBoundsForMalloc(IRBuilder<> &B, StoreInst *PointerStore){
       B.CreateGEP(FatPointer, GetIndices(2, PointerStore->getContext()));
 
   B.CreateStore(B.CreateIntToPtr(Bound, Address->getType()), FatPointerBound);
+}
+void Transform::SetBoundsOnFree(Instruction *Next, Value *FatPointer){
+  // Follow through the cast if there is one
+  if(auto BC = dyn_cast<BitCastInst>(Next))
+    Next = Next->use_back();
+
+  auto Call = dyn_cast<CallInst>(Next);
+  if(!Call)
+    return;
+  if(Call->getCalledFunction()->getName() != "free")
+    return;
+
+  // The fat pointer has been freed, so set the Bound equal to the Base
+  BasicBlock::iterator iter = Call;
+  iter++;
+
+  IRBuilder<> B(iter); // Insert after the free
+
+  Value* BaseAddr = B.CreateGEP(FatPointer, GetIndices(1, Next->getContext()));
+  Value* BoundAddr = B.CreateGEP(FatPointer, GetIndices(2, Next->getContext()));
+  B.CreateStore(B.CreateLoad(BaseAddr), BoundAddr);
 }
 void Transform::TransformFunctionCalls(){
   for(auto Call : Instructions->Calls){
