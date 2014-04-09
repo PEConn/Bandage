@@ -1,4 +1,5 @@
 #include "TypeDuplicater.hpp"
+#include <stack>
 #include "llvm/Support/raw_ostream.h"
 #include "FatPointers.hpp"
 
@@ -60,12 +61,18 @@ void TypeDuplicater::DisplayFPTypes(){
 }
 
 Type *TypeDuplicater::remapType(Type *srcType){
-  // Follow any pointer types through to the base element type
-  int PointerLevels = 0;
+  // Follow any pointer or array types through to the base element type
+  // Wrappers contains 0 for a pointer and the array size for an array
+  std::stack<int> Wrappers;
   Type *ElementType = srcType;
-  while(ElementType->isPointerTy()){
-    ElementType = ElementType->getPointerElementType();
-    PointerLevels++;
+  while(ElementType->isPointerTy() || ElementType->isArrayTy()){
+    if(ElementType->isPointerTy()){
+      Wrappers.push(0);
+      ElementType = ElementType->getPointerElementType();
+    } else {
+      Wrappers.push(ElementType->getArrayNumElements());
+      ElementType = ElementType->getArrayElementType();
+    }
   }
 
   // Check to see if we have a fat pointer version of the type
@@ -77,13 +84,19 @@ Type *TypeDuplicater::remapType(Type *srcType){
 
   Type *Ret = RawToFPMap[ST];
 
-  // Reapply any pointer levels
-  while(PointerLevels--)
-    Ret = Ret->getPointerTo();
+  // Reapply any pointer or array levels
+  while(!Wrappers.empty()){
+    if(Wrappers.top() == 0)
+      Ret = Ret->getPointerTo();
+    else
+      Ret = ArrayType::get(Ret, Wrappers.top());
 
+    Wrappers.pop();
+  }
+
+  errs() << *srcType << "->" << *Ret << "\n";
   return Ret;
 }
-
 
 std::set<StructType *> TypeDuplicater::GetFPTypes(){
   return FPStructs;
