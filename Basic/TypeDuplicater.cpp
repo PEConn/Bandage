@@ -10,7 +10,7 @@ TypeDuplicater::TypeDuplicater(Module &M, FindUsedTypes *FUT){
   }
   CreateSkeletonTypes();
   FillTypeBodies();
-  DisplayFPTypes();
+  DisplayFPTypes(new DataLayout(&M));
 }
 
 void TypeDuplicater::CreateSkeletonTypes(){
@@ -54,9 +54,9 @@ bool TypeDuplicater::NeedsFPType(StructType *ST){
       return true;
   return false;
 }
-void TypeDuplicater::DisplayFPTypes(){
+void TypeDuplicater::DisplayFPTypes(DataLayout *DL){
   for(auto T: FPStructs){
-    errs() << *T << "\n";
+    errs() << DL->getTypeAllocSizeInBits(T)/8 << "B: " << *T << "\n";
   }
 }
 

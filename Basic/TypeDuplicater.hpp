@@ -25,7 +25,7 @@ private:
   bool NeedsFPType(StructType *ST);
   void CreateSkeletonTypes();
   void FillTypeBodies();
-  void DisplayFPTypes();
+  void DisplayFPTypes(DataLayout *DL);
 
   std::set<StructType *> RawStructs;
   std::set<StructType *> FPStructs;
