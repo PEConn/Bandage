@@ -64,7 +64,7 @@ void FunctionDuplicater::DuplicateFunctions(Module &M, TypeDuplicater *TD){
       VMap[OldArgI] = NewArgI;
     }
     SmallVector<ReturnInst *, 5> Returns;
-    CloneFunctionInto(NewFunc, F, VMap, true, Returns, "FatPointer", 
+    CloneFunctionInto(NewFunc, F, VMap, true, Returns, "", 
         NULL, TD, NULL);
 
     FPFunctions.insert(NewFunc);

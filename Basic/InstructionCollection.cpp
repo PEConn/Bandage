@@ -18,10 +18,10 @@ template <typename T> void RemoveAFromB(std::set<T> &A, std::set<T> &B){
   B = I;
 }
 
-InstructionCollection::InstructionCollection(std::set<Function *> Functions, std::set<Function *> RawFunctions, std::set<StructType *> FPStructs){
-  this->RawFunctions = RawFunctions;
-  this->FPStructs = FPStructs;
-  CollectInstructions(Functions);
+InstructionCollection::InstructionCollection(FunctionDuplicater *FD, TypeDuplicater *TD){
+  this->FD = FD;
+  this->TD = TD;
+  CollectInstructions(FD->GetFPFunctions());
 }
 
 void InstructionCollection::CollectInstructions(std::set<Function *> Functions){
@@ -85,8 +85,8 @@ void InstructionCollection::CheckForStructGep(Instruction *I){
   if(auto G = dyn_cast<GetElementPtrInst>(I)){
     Type *T = G->getPointerOperand()->getType()->getPointerElementType();
     if(auto *ST = dyn_cast<StructType>(T))
-      if(FPStructs.count(ST))
-        StructGeps.insert(G);
+      if(TD->GetFPTypes().count(ST))
+        GepsToRecreate.insert(G);
   }
 }
 
@@ -104,7 +104,7 @@ void InstructionCollection::AddPointerEquals(){
 void InstructionCollection::CheckForFunctionCall(Instruction *I){
   if(CallInst *C = dyn_cast<CallInst>(I)){
     // Check if this is a transformable function
-    if(!RawFunctions.count(C->getCalledFunction()))
+    if(!FD->GetRawFunctions().count(C->getCalledFunction()))
       return;
 
     Calls.insert(C);

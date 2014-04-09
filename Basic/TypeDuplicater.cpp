@@ -10,6 +10,7 @@ TypeDuplicater::TypeDuplicater(Module &M, FindUsedTypes *FUT){
   }
   CreateSkeletonTypes();
   FillTypeBodies();
+  DisplayFPTypes();
 }
 
 void TypeDuplicater::CreateSkeletonTypes(){
@@ -26,7 +27,7 @@ void TypeDuplicater::FillTypeBodies(){
       // Replace all pointers with fat pointers
       // Replace all types with their FP equivalent
       Type *Old = ST->getElementType(i);
-      bool WasPointer;
+      bool WasPointer = false;
       if(Old->isPointerTy()){
         WasPointer = true;
         Old = Old->getPointerElementType();
@@ -43,7 +44,6 @@ void TypeDuplicater::FillTypeBodies(){
       FPStructElements.push_back(New);
     }
 
-    //ST->setBody(FPStructElements);
     RawToFPMap[ST]->setBody(FPStructElements);
     FPStructs.insert(RawToFPMap[ST]);
   }
@@ -94,7 +94,7 @@ Type *TypeDuplicater::remapType(Type *srcType){
     Wrappers.pop();
   }
 
-  errs() << *srcType << "->" << *Ret << "\n";
+  //errs() << *srcType << "->" << *Ret << "\n";
   return Ret;
 }
 

@@ -29,7 +29,7 @@ private:
   void TransformFunctionCalls();
   void TransformReturns();
 
-  void RecreateStructGeps();
+  void RecreateGeps();
 
   void SetBoundsForConstString(IRBuilder<> &B, StoreInst *PointerStore);
   void SetBoundsForMalloc(IRBuilder<> &B, StoreInst *PointerStore);

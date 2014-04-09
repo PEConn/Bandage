@@ -3,12 +3,14 @@
 
 #include <set>
 #include "llvm/IR/Instructions.h"
+#include "FunctionDuplicater.hpp"
+#include "TypeDuplicater.hpp"
 
 using namespace llvm;
 
 class InstructionCollection{
 public:
-  InstructionCollection(std::set<Function *> Functions, std::set<Function *> RawFunctions, std::set<StructType *> FPStructs);
+  InstructionCollection(FunctionDuplicater *FD, TypeDuplicater *TD);
 
   std::set<AllocaInst *>          PointerAllocas;
   std::set<StoreInst *>           PointerStores;
@@ -25,11 +27,10 @@ public:
   std::set<AllocaInst *>          ArrayAllocas;
   std::set<GetElementPtrInst *>   ArrayGeps;
 
-  std::set<GetElementPtrInst *>   StructGeps;
-
+  std::set<GetElementPtrInst *>   GepsToRecreate;
 private:
-  std::set<Function *> RawFunctions;
-  std::set<StructType *> FPStructs;
+  FunctionDuplicater *FD;
+  TypeDuplicater *TD;
 
   void CollectInstructions(std::set<Function *> Functions);
 
@@ -38,6 +39,7 @@ private:
   void CheckForPointerLoad(Instruction *I);
   void CheckForPointerParameter(Instruction *I);
   void CheckForArrayAlloca(Instruction *I); 
+
   void CheckForStructGep(Instruction *I);
 
   void CheckForFunctionCall(Instruction *I);

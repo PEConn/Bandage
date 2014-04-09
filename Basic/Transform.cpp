@@ -26,7 +26,8 @@ Transform::Transform(InstructionCollection *Instructions, std::map<Function *, F
 }
 
 void Transform::Apply(){
-  RecreateStructGeps();
+  RecreateGeps();
+
   TransformPointerAllocas();
   TransformPointerStores();
   TransformPointerLoads();
@@ -277,9 +278,9 @@ void Transform::TransformFunctionCalls(){
   }
 }
 
-void Transform::RecreateStructGeps(){
-  // This needs to be before Transform Pointer Loads
-  for(auto Gep: Instructions->StructGeps){
+void Transform::RecreateGeps(){
+  // This needs to be before TransformPointerLoads
+  for(auto Gep: Instructions->GepsToRecreate){
     IRBuilder<> B(Gep);
 
     std::vector<Value *> Indices;

@@ -36,8 +36,7 @@ struct Bandage : public ModulePass{
     errs() << "Duplicating Functions\n";
     auto *FD = new FunctionDuplicater(M, TD);
     errs() << "Collecting Instructions\n";
-    auto *IC = new InstructionCollection(FD->GetFPFunctions(), 
-        FD->GetRawFunctions(), TD->GetFPTypes());
+    auto *IC = new InstructionCollection(FD, TD);
     errs() << "Transforming\n";
     auto *T  = new Transform(IC, FD->RawToFPMap, M);
     T->Apply();
