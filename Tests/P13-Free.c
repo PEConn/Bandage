@@ -16,7 +16,7 @@ int main(){
 	// CHECK: 6
 
   printf("%d\n", *x);
-  // CHECK: OutOfBounds
+  // CHECK: Invalid
 
 	return 0;
 }

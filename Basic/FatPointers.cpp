@@ -53,44 +53,74 @@ void FatPointers::CreateBoundsCheckFunction(Type *PointerType, Function *Print, 
   Value *Bound = Args++;
   Bound->setName("Bound");
 
-  BasicBlock *Main = BasicBlock::Create(PointerType->getContext(), 
-      "main", BoundsCheck);
-  IRBuilder<> B(Main);
+  BasicBlock *UnsetCheck = BasicBlock::Create(PointerType->getContext(), 
+      "UnsetCheck", BoundsCheck);
+  IRBuilder<> B(UnsetCheck);
 
-  /*B.CreateCall2(Print, Str(B, "Base:  %p"), Base);
+  B.CreateCall2(Print, Str(B, "Base:  %p"), Base);
   B.CreateCall2(Print, Str(B, "Value: %p"), Val);
-  B.CreateCall2(Print, Str(B, "Bound: %p"), Bound);*/
+  B.CreateCall2(Print, Str(B, "Bound: %p"), Bound);
 
-  Type *IntegerType = IntegerType::getInt32Ty(Val->getContext());
-  Value *InLowerBound = B.CreateICmpUGE(
-      B.CreatePtrToInt(Val, IntegerType),
-      B.CreatePtrToInt(Base, IntegerType) 
-      );
-  Value *InHigherBound = B.CreateICmpULT(
-      B.CreatePtrToInt(Val, IntegerType),
-      B.CreatePtrToInt(Bound, IntegerType)
-      );
-      
-  Instruction *InBounds = cast<Instruction>(B.CreateAnd(InLowerBound, InHigherBound));
+  Type *IntegerType = IntegerType::getInt64Ty(Val->getContext());
 
-  BasicBlock::iterator iter = BasicBlock::iterator(InBounds);
+  // Create the check for (Base == NULL)
+  Value *BaseAsInt = B.CreatePtrToInt(Base, IntegerType);
+  Value *IsBaseNull = B.CreateICmpEQ(ConstantInt::get(IntegerType, 0), BaseAsInt);
+  BasicBlock::iterator iter = BasicBlock::iterator(cast<Instruction>(IsBaseNull));
   iter++;
 
-  BasicBlock *BeforeBB = InBounds->getParent();
-  BasicBlock *PassedBB = BeforeBB->splitBasicBlock(iter);
+  BasicBlock *InvalidCheck = UnsetCheck->splitBasicBlock(iter, "InvalidCheck");
+  removeTerminator(UnsetCheck);
 
-  removeTerminator(BeforeBB);
-  BasicBlock *FailedBB = BasicBlock::Create(InBounds->getContext(),
-      "BoundsCheckFailed", BeforeBB->getParent());
+  // Create the check for (Base == Bound)
+  B.SetInsertPoint(InvalidCheck);
+  Value *BoundAsInt = B.CreatePtrToInt(Bound, IntegerType);
+  Value *IsBaseEqBound = B.CreateICmpEQ(BaseAsInt, BoundAsInt);
+  iter = BasicBlock::iterator(cast<Instruction>(IsBaseEqBound));
+  iter++;
 
-  B.SetInsertPoint(BeforeBB);
-  B.CreateCondBr(InBounds, PassedBB, FailedBB);
+  BasicBlock *InBoundsCheck = InvalidCheck->splitBasicBlock(iter, "InBoundsCheck");
+  removeTerminator(InvalidCheck);
+  
+  // Create the check for (Base <= Value < Bound)
+  B.SetInsertPoint(InBoundsCheck);
+  Value *ValueAsInt = B.CreatePtrToInt(Val, IntegerType);
+  Value *InLowerBound = B.CreateICmpUGE(ValueAsInt, BaseAsInt);
+  Value *InHigherBound = B.CreateICmpULT(ValueAsInt, BoundAsInt);
+  Instruction *IsInBounds = cast<Instruction>(B.CreateAnd(InLowerBound,InHigherBound));
 
-  B.SetInsertPoint(FailedBB);
+  iter = BasicBlock::iterator(cast<Instruction>(IsInBounds));
+  iter++;
+
+  BasicBlock *AfterChecks = InBoundsCheck->splitBasicBlock(iter, "AfterChecks");
+  removeTerminator(InBoundsCheck);
+
+  // Now create the failure basic blocks
+  LLVMContext *C = &IsInBounds->getContext();
+  BasicBlock *Invalid = BasicBlock::Create(*C, "Invalid", BoundsCheck);
+  B.SetInsertPoint(Invalid);
+  B.CreateCall(Print, Str(B, "Invalid"));
+  B.CreateBr(AfterChecks);
+
+  BasicBlock *Unset = BasicBlock::Create(*C, "Unset", BoundsCheck);
+  B.SetInsertPoint(Unset);
+  B.CreateCall(Print, Str(B, "Unset"));
+  B.CreateBr(AfterChecks);
+
+  BasicBlock *OutOfBounds = BasicBlock::Create(*C, "OutOfBounds", BoundsCheck);
+  B.SetInsertPoint(OutOfBounds);
   B.CreateCall(Print, Str(B, "OutOfBounds"));
-  B.CreateBr(PassedBB);
+  B.CreateBr(AfterChecks);
 
-  B.SetInsertPoint(PassedBB);
+  // Link the Check basic blocks to their failures
+  B.SetInsertPoint(UnsetCheck);
+  B.CreateCondBr(IsBaseNull, Unset,InvalidCheck);
+  B.SetInsertPoint(InvalidCheck);
+  B.CreateCondBr(IsBaseEqBound, Invalid, InBoundsCheck);
+  B.SetInsertPoint(InBoundsCheck);
+  B.CreateCondBr(IsInBounds, AfterChecks, OutOfBounds);
+
+  B.SetInsertPoint(AfterChecks);
   B.CreateRetVoid();
 
   BoundsChecks[PointerType] = BoundsCheck;
