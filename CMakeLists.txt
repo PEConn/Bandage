@@ -27,3 +27,4 @@ set(LLVM_LIBRARY_OUTPUT_INTDIR ".")
 include(AddLLVM)
 
 add_subdirectory(Basic)
+add_subdirectory(PointerAnalysis)
