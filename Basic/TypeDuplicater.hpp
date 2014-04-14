@@ -26,6 +26,7 @@ private:
   void CreateSkeletonTypes();
   void FillTypeBodies();
   void DisplayFPTypes(DataLayout *DL);
+  void RemoveNonLocalTypes(Module &M);
 
   std::set<StructType *> RawStructs;
   std::set<StructType *> FPStructs;

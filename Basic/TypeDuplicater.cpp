@@ -1,16 +1,49 @@
 #include "TypeDuplicater.hpp"
 #include <stack>
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/IR/Metadata.h"
 #include "FatPointers.hpp"
 
 TypeDuplicater::TypeDuplicater(Module &M, FindUsedTypes *FUT){
   for(auto T: FUT->getTypes()){
-    if(T->isStructTy())
+    if(T->isStructTy()){
       RawStructs.insert(cast<StructType>(T));
+    }
   }
+
+  RemoveNonLocalTypes(M);
+
   CreateSkeletonTypes();
   FillTypeBodies();
-  DisplayFPTypes(new DataLayout(&M));
+  //DisplayFPTypes(new DataLayout(&M));
+}
+
+void TypeDuplicater::RemoveNonLocalTypes(Module &M){
+  std::set<Function *> UndefinedFunctions;
+  for(auto IF = M.begin(), EF = M.end(); IF != EF; ++IF){
+    Function *F = &*IF;
+
+    if(F->isDeclaration())
+      UndefinedFunctions.insert(F);
+  }
+
+  for(auto F: UndefinedFunctions){
+    FunctionType *FuncType = cast<FunctionType>(F->getFunctionType());
+    for(int i=0; i<FuncType->getNumParams(); i++){
+      Type *T =FuncType->getParamType(i);
+
+      while(T->isPointerTy())
+        T = T->getPointerElementType();
+      if(auto *ST = dyn_cast<StructType>(T))
+        RawStructs.erase(ST);
+    }
+
+    Type *T =FuncType->getReturnType();
+    while(T->isPointerTy())
+      T = T->getPointerElementType();
+    if(auto *ST = dyn_cast<StructType>(T))
+      RawStructs.erase(ST);
+  }
 }
 
 void TypeDuplicater::CreateSkeletonTypes(){

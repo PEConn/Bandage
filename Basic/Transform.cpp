@@ -84,8 +84,9 @@ void Transform::TransformPointerStores(){
 
     B.SetInsertPoint(NewStore);
 
-    SetBoundsForMalloc(B, PointerStore);
-    SetBoundsForConstString(B, PointerStore);
+    SetBoundsOnMalloc(B, PointerStore);
+    SetBoundsOnExternalFunctionCall(B, PointerStore);
+    SetBoundsOnConstString(B, PointerStore);
     
     PointerStore->eraseFromParent();
   }
@@ -205,7 +206,7 @@ void Transform::TransformArrayGeps(){
     B.SetInsertPoint(AfterCheck);
   }
 }
-void Transform::SetBoundsForConstString(IRBuilder<> &B, StoreInst *PointerStore){
+void Transform::SetBoundsOnConstString(IRBuilder<> &B, StoreInst *PointerStore){
   // In this case, the Address will be a GEP instruction
   Value *Address = PointerStore->getValueOperand();
   auto *Gep = dyn_cast<GEPOperator>(Address);
@@ -230,7 +231,7 @@ void Transform::SetBoundsForConstString(IRBuilder<> &B, StoreInst *PointerStore)
 
   B.CreateStore(B.CreateIntToPtr(Bound, Address->getType()), FatPointerBound);
 }
-void Transform::SetBoundsForMalloc(IRBuilder<> &B, StoreInst *PointerStore){
+void Transform::SetBoundsOnMalloc(IRBuilder<> &B, StoreInst *PointerStore){
   Value *Prev = PointerStore->getValueOperand();
 
   // Follow through a cast if there is one
@@ -262,6 +263,29 @@ void Transform::SetBoundsForMalloc(IRBuilder<> &B, StoreInst *PointerStore){
       B.CreateGEP(FatPointer, GetIndices(2, PointerStore->getContext()));
 
   B.CreateStore(B.CreateIntToPtr(Bound, Address->getType()), FatPointerBound);
+}
+void Transform::SetBoundsOnExternalFunctionCall(IRBuilder<> &B, StoreInst *PointerStore){
+  Value *Prev = PointerStore->getValueOperand();
+
+  // Follow through a cast if there is one
+  if(auto BC = dyn_cast<BitCastInst>(Prev))
+    Prev = BC->getOperand(0);
+
+  auto Call = dyn_cast<CallInst>(Prev);
+  if(!Call)
+    return;
+
+  if(Call->getCalledFunction()->getName() == "malloc")
+    return;
+
+  Value* FatPointer = PointerStore->getPointerOperand(); 
+  Value *Address = PointerStore->getValueOperand();
+
+  Value* FatPointerBase = 
+      B.CreateGEP(FatPointer, GetIndices(1, PointerStore->getContext()));
+
+  Type *IntegerType = IntegerType::getInt64Ty(PointerStore->getContext());
+  B.CreateStore(B.CreateIntToPtr(ConstantInt::get(IntegerType, 0), Address->getType()), FatPointerBase);
 }
 void Transform::SetBoundsOnFree(Instruction *Next, Value *FatPointer){
   // Follow through the cast if there is one

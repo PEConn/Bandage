@@ -31,8 +31,9 @@ private:
 
   void RecreateGeps();
 
-  void SetBoundsForConstString(IRBuilder<> &B, StoreInst *PointerStore);
-  void SetBoundsForMalloc(IRBuilder<> &B, StoreInst *PointerStore);
+  void SetBoundsOnConstString(IRBuilder<> &B, StoreInst *PointerStore);
+  void SetBoundsOnMalloc(IRBuilder<> &B, StoreInst *PointerStore);
+  void SetBoundsOnExternalFunctionCall(IRBuilder<> &B, StoreInst *PointerStore);
   void SetBoundsOnFree(Instruction *Next, Value *FatPointer);
 
   void AddPrint(IRBuilder<> B, std::string str, Value *v);

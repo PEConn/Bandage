@@ -3,7 +3,7 @@
 opt_bandage="opt -load ../../Bandage_build/Basic/LLVMBandage.so"
 
 echo -en "\033[33m"
-clang -g -S -emit-llvm ${1%.c}.c -o ${1%.c}.bc
+clang -O0 -g3 -S -emit-llvm ${1%.c}.c -o ${1%.c}.bc
 echo -en "\033[0m"
 #${opt_bandage} -S -p -bandage ${1%.c}.bc > ${1%.c}_ban.bc
 ${opt_bandage} -S -bandage ${1%.c}.bc > ${1%.c}_ban.bc
