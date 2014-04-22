@@ -10,14 +10,14 @@ Pointer::Pointer(Value *id, int level){
 }
 
 std::string Pointer::ToString() const{
-  return "(" + (std::string)id->getName() + ", " + std::to_string(level) + ")";
+  return "(" + (id->hasName() ? (std::string)id->getName() : std::to_string((long)id)) + ", " + std::to_string(level) + ")";
 }
 
 std::string Pretty(enum CCuredPointerType PT){
   switch(PT){
     case UNSET: return "Unset";
     case SAFE: return "Safe";
-    case SEQ: return "Seqential";
+    case SEQ: return "Sequential";
     case DYNQ: return "Dynamic";
   }
 }

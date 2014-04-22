@@ -5,7 +5,6 @@
 
 int main(){
 	int *x = malloc(sizeof(int));
-  // CHECK: Safe: x
 
   *x = 4;
   printf("%d\n", *x);
@@ -15,5 +14,7 @@ int main(){
 
 void Function(){
   char *y;
-  // CHECK: Safe: y
 }
+
+// CHECK: (x, 0): Safe
+// CHECK: (y, 0): Safe

@@ -12,6 +12,7 @@ int main(){
     x++;
   }
 
-  // CHECK: Sequential: x
 	return 0;
 }
+
+// CHECK: (x, 0): Sequential

@@ -8,7 +8,8 @@ int main(){
 	int *x;
 
   x = (int *)a;
-  // CHECK: Dynamic: x
 
 	return 0;
 }
+
+// CHECK: (x, 0): Dynamic
