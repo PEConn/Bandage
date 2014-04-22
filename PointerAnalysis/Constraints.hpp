@@ -3,34 +3,45 @@
 
 #include <string>
 #include "llvm/IR/Instructions.h"
+#include "llvm/IR/Function.h"
+#include "Pointer.hpp"
 
 using namespace llvm;
 
 class Constraint{
 public:
-  virtual void Print() = 0;
-protected:
-  std::string PrettyString(Value *V, int level);
+  virtual std::string ToString() = 0;
 };
 
-class EqualsConstraint : public Constraint{
+class PointerArithmetic : public Constraint{
 public:
-  EqualsConstraint(class Value *Pointer, int PointerLevel, class Value *Value, int ValueLevel);
-  virtual void Print();
-private:
-  Value *Pointer;
-  Value *Value;
-  int PointerLevel;
-  int ValueLevel;
+  PointerArithmetic(Pointer P);
+  virtual std::string ToString();
+  Pointer P;
 };
 
-class ArithmeticConstraint : public Constraint{
+class SetToPointer : public Constraint{
 public:
-  ArithmeticConstraint(class Value *Pointer, int PointerLevel);
-  virtual void Print();
-private:
-  Value *Pointer;
-  int PointerLevel;
+  SetToPointer(Pointer Lhs, Pointer Rhs);
+  virtual std::string ToString();
+  bool TypesMatch();
+  Pointer Lhs;
+  Pointer Rhs;
+};
+
+class SetToFunction : public Constraint{
+public:
+  SetToFunction(Pointer P, Function *F);
+  virtual std::string ToString();
+  Pointer P;
+  Function *F;
+};
+
+class IsDynamic : public Constraint{
+public:
+  IsDynamic(Pointer P);
+  virtual std::string ToString();
+  Pointer P;
 };
 
 #endif

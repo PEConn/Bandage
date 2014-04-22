@@ -4,7 +4,7 @@
 #include <stdlib.h>
 
 int main(){
-	int *x;
+	int *x = malloc(sizeof(int));
   // CHECK: Safe: x
 
   *x = 4;

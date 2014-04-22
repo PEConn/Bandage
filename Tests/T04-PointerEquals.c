@@ -8,12 +8,16 @@ int main(){
   int **y;
   int *z;
 
+  x = malloc(sizeof(int ***));
+
   *x = y;
   // CHECK: *x = y;
   *y = z;
   // CHECK: *y = z;
   z = **x;
   // CHECK: z = **x;
+
+  y = (int **)123;
 
   int *a;
   int *b;

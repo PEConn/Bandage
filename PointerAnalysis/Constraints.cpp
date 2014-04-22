@@ -1,40 +1,34 @@
 #include "Constraints.hpp"
 #include "llvm/Support/raw_ostream.h"
 
-EqualsConstraint::EqualsConstraint(class Value *Pointer, int PointerLevel, class Value *Value, int ValueLevel){
-  this->Pointer = Pointer;
-  this->PointerLevel = PointerLevel;
-  this->Value = Value;
-  this->ValueLevel = ValueLevel;
+PointerArithmetic::PointerArithmetic(Pointer P){
+  this->P = P;
+}
+SetToPointer::SetToPointer(Pointer Lhs, Pointer Rhs){
+  this->Lhs = Lhs;
+  this->Rhs = Rhs;
+}
+SetToFunction::SetToFunction(Pointer P, Function *F){
+  this->P = P;
+  this->F = F;
+}
+IsDynamic::IsDynamic(Pointer P){
+  this->P = P;
 }
 
-void EqualsConstraint::Print(){
-  int Diff = PointerLevel - ValueLevel;
-
-  //errs() << PrettyString(Pointer, PointerLevel) << " = ";
-  //errs() << (ValueLevel == -1 ? ("&" + Value->getName()) : PrettyString(Value, ValueLevel)) << ";\n";
-
-  std::string PointerStr = PrettyString(Pointer, Diff);
-  std::string ValueStr = PrettyString(Value, -Diff);
-
-  errs() << "Q(" + ValueStr + ") <= Q(" + PointerStr + ")\n";
-  errs() << "Q(" + ValueStr + ") == Q(" + PointerStr + ") = DYNQ";
-  errs() << " || T(" + ValueStr + ") ~= T(" + PointerStr + ")\n";
+std::string PointerArithmetic::ToString(){
+  return "Pointer Arithmetic on " + P.ToString();
+}
+std::string SetToPointer::ToString(){
+  return Lhs.ToString() + " set to " + Rhs.ToString();
+}
+std::string SetToFunction::ToString(){
+  return P.ToString() + " set to " + (std::string)F->getName();
+}
+std::string IsDynamic::ToString(){
+  return P.ToString() + " is dynamic";
 }
 
-ArithmeticConstraint::ArithmeticConstraint(class Value *Pointer, int PointerLevel){
-  this->Pointer = Pointer;
-  this->PointerLevel = PointerLevel;
-}
-void ArithmeticConstraint::Print(){
-  std::string PointerStr = PrettyString(Pointer, PointerLevel);
-  errs() << "Q(" << PointerStr << ") != SAFE\n";
-}
-
-std::string Constraint::PrettyString(Value *V, int level){
-  std::string str;
-  for(int i=0; i<level; i++)
-    str += "*";
-  str += V->getName();
-  return str;
+bool SetToPointer::TypesMatch(){
+  return Lhs.id->getType() == Rhs.id->getType();
 }

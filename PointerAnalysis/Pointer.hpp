@@ -2,25 +2,37 @@
 #define POINTER_HPP
 
 #include <set>
+#include <string>
 #include "llvm/IR/Instructions.h"
 
 using namespace llvm;
 
-enum CCuredPointerType {SAFE, SEQ, DYN};
+enum CCuredPointerType {UNSET, SAFE, SEQ, DYNQ};
+std::string Pretty(enum CCuredPointerType PT);
 
 class Pointer{
 public:
-  Pointer(AllocaInst *Declaration);
-  void CollectUses();
-  void DeterminePointerType();
-  void Print();
-private:
-  void CheckStores();
-  Value *FollowStore(StoreInst *S);
-  AllocaInst *Declaration;
-  CCuredPointerType PointerType = DYN;
+  Value *id;
+  int level;
 
-  std::set<Value *> Uses;
+  Pointer(){}
+  Pointer(Value *id, int level);
+  std::string ToString() const;
+
+  bool operator<(const Pointer &Other) const{
+    
+    if(id < Other.id){
+      return true;
+    } else if(id == Other.id){
+      if(level < Other.level){
+        return true;
+      } else {
+        return false;
+      }
+    } else {
+      return false;
+    }
+  }
 };
 
 #endif

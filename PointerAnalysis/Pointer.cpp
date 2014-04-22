@@ -4,64 +4,25 @@
 #include "llvm/IR/Function.h"
 #include "llvm/Support/raw_ostream.h"
 
+Pointer::Pointer(Value *id, int level){
+  this->id = id;
+  this->level = level;
+}
+
+std::string Pointer::ToString() const{
+  return "(" + (std::string)id->getName() + ", " + std::to_string(level) + ")";
+}
+
 std::string Pretty(enum CCuredPointerType PT){
   switch(PT){
+    case UNSET: return "Unset";
     case SAFE: return "Safe";
     case SEQ: return "Seqential";
-    case DYN: return "Dynamic";
+    case DYNQ: return "Dynamic";
   }
 }
 
-Pointer::Pointer(AllocaInst *Declaration){
-  this->Declaration = Declaration;
-  CollectUses();
-  DeterminePointerType();
-  Print();
-}
-
-void Pointer::CollectUses(){
-  Uses.insert(Declaration);
-
-  std::queue<Value *> Q;
-  Q.push(Declaration);
-
-  while(!Q.empty()){
-    Value *Use = Q.front();
-    for(auto UI = Use->use_begin(), UE = Use->use_end(); UI != UE; ++UI){
-      Q.push(*UI);
-      Uses.insert(*UI);
-    }
-    Q.pop();
-  }
-}
-
-void Pointer::DeterminePointerType(){
-  CheckStores();
-}
-
-void Pointer::CheckStores(){
-  std::set<StoreInst *> Stores;
-  for(auto Use: Uses)
-    if(auto S = dyn_cast<StoreInst>(Use))
-      if(S->getPointerOperand() == Declaration)
-        Stores.insert(S);
-
-  if(Stores.empty())
-    PointerType = SAFE;
-
-  for(auto S: Stores){
-    Value *Source = FollowStore(S);
-    if(auto C = dyn_cast<CallInst>(Source)){
-      errs() << "From function " << C->getCalledFunction()->getName() << "\n";
-    } else if(auto A = dyn_cast<AllocaInst>(Source)){
-      errs() << "From value " << A->getName() << "\n";
-    } else {
-      errs() << *Source << "\n";
-    }
-  }
-}
-
-Value *Pointer::FollowStore(StoreInst *S){
+Value *FollowStore(StoreInst *S){
   Value *Inst = S;
   Value *PrevInst;
   errs() << *Inst << "\n";
@@ -79,11 +40,4 @@ Value *Pointer::FollowStore(StoreInst *S){
   errs() << *Inst << "\n";
   }while(Inst != NULL);
   return PrevInst;
-}
-
-void Pointer::Print(){
-  errs() << Pretty(PointerType) << ": " << Declaration->getName() << "\n";
-  for(auto Use: Uses)
-    errs() << *Use << "\n";
-  errs() << "----------" << "\n";
 }
