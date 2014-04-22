@@ -22,6 +22,8 @@
 #include "Transform.hpp"
 #include "FatPointers.hpp"
 
+#include "../PointerAnalysis/Pass.hpp"
+
 using namespace llvm;
 
 namespace {
@@ -32,7 +34,7 @@ struct Bandage : public ModulePass{
   virtual bool runOnModule(Module &M) {
     errs() << "\n\n\n";
     errs() << "Duplicating Types\n";
-    auto *TD = new TypeDuplicater(M,  &getAnalysis<FindUsedTypes>());
+    auto *TD = new TypeDuplicater(M, &getAnalysis<FindUsedTypes>());
     errs() << "Duplicating Functions\n";
     auto *FD = new FunctionDuplicater(M, TD);
     errs() << "Collecting Instructions\n";
@@ -42,9 +44,12 @@ struct Bandage : public ModulePass{
     T->Apply();
     errs() << "\n\n\n";
 
+    auto PA = &getAnalysis<PointerAnalysis>();
+
     return true;
   }
   virtual void getAnalysisUsage(AnalysisUsage &AU) const { 
+    AU.addRequired<PointerAnalysis>();
     AU.addRequired<FindUsedTypes>();
   }
 };
@@ -52,4 +57,4 @@ struct Bandage : public ModulePass{
 
 
 char Bandage::ID = 0;
-static RegisterPass<Bandage> X("bandage", "Bandage Pass", false, false);
+static RegisterPass<Bandage> Y("bandage", "Bandage Pass", false, false);
