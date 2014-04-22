@@ -35,7 +35,6 @@ private:
   std::set<Pointer> PointerUses;
   std::map<Function *, Pointer> FunctionReturns;
   std::map<std::pair<Function *, int>, Pointer> FunctionParameters;
-  std::map<Value *, Value *> HiddenParamToParam;
 
   std::set<IsDynamic *> IDCons;
   std::set<SetToFunction *> STFCons;
@@ -52,7 +51,7 @@ void PointerAnalysis::CollectPointers(Module &M){
       Instruction *I = &*II;
 
       if(auto A = dyn_cast<AllocaInst>(I)){
-        if(A->hasName() && A->getAllocatedType()->isPointerTy()){
+        if(A->getAllocatedType()->isPointerTy()){
           PointerUses.insert(Pointer(A, 0));
           Pointers.insert(A);
         }
@@ -78,12 +77,15 @@ void PointerAnalysis::CollectPointers(Module &M){
     // Remember the arguments to the function
     int i = 0;
     for(auto IA = IF->arg_begin(), EA = IF->arg_end(); IA != EA; ++IA){
+      // Parameters will immediately be stored in an unnamed local variable
       for(auto IU = IA->use_begin(), EU = IA->use_end(); IU != EU; ++IU){
-        if(auto S = dyn_cast<StoreInst>(*IU))
-          HiddenParamToParam[S->getPointerOperand()] = S->getValueOperand();
+        if(auto S = dyn_cast<StoreInst>(*IU)){
+          // Store the name of the parameter for pretty output
+          Value *ActualArg = S->getPointerOperand();
+          Pointer::NameMap[ActualArg] = IA->getName();
+          FunctionParameters[std::make_pair(IF, i)] = Pointer(ActualArg, 0);
+        }
       }
-      Pointers.insert(IA);
-      FunctionParameters[std::make_pair(IF, i)] = Pointer(IA, 0);
     }
   }
 
@@ -122,13 +124,6 @@ void PointerAnalysis::CollectPointers(Module &M){
       if(!Pointers.count(PointerOperand))
         continue;
 
-      // Follow back through a parameter if needed
-      if(HiddenParamToParam.count(ValueOperand))
-        ValueOperand = HiddenParamToParam[ValueOperand];
-
-      if(HiddenParamToParam.count(PointerOperand))
-        continue;
-
       // Note if the store comes from an assignment from another variable 
       // or a function
       auto P = Pointer(PointerOperand, PointerLevel);
@@ -143,9 +138,7 @@ void PointerAnalysis::CollectPointers(Module &M){
         IDCons.insert(new IsDynamic(P));
       } else if (auto C = dyn_cast<Constant>(ValueOperand)){
         IDCons.insert(new IsDynamic(P));
-      } else if (auto Arg = dyn_cast<Argument>(ValueOperand)){
-        PointerUses.insert(Pointer(ValueOperand, 0));
-        STPCons.insert(new SetToPointer(P, Pointer(ValueOperand, 0)));
+      } else if (auto A = dyn_cast<Argument>(ValueOperand)){
       } else {
         errs() << P.ToString() << " set to: " << *ValueOperand << "\n";
       }
@@ -172,6 +165,37 @@ void PointerAnalysis::CollectPointers(Module &M){
 
       PointerUses.insert(Pointer(PointerOperand, PointerLevel));
       PACons.insert(new PointerArithmetic(Pointer(PointerOperand, PointerLevel)));
+    }
+  }
+
+  // Collect Pointer Parameters
+  for(auto IF = M.begin(), EF = M.end(); IF != EF; ++IF){
+    for(auto II = inst_begin(IF), EI = inst_end(IF); II != EI; ++II){
+      Instruction *I = &*II;
+      CallInst *C;
+      if(!(C = dyn_cast<CallInst>(I)))
+        continue;
+
+      Function *F = C->getCalledFunction();
+      // Treat each argument as an assignment of the provided argument
+      // to the variable within the function
+      for(int i=0; i<C->getNumArgOperands(); i++){
+        // See if we care about this argument
+        if(!FunctionParameters.count(std::make_pair(F, i)))
+          continue;
+
+        // Follow the value back to an alloc
+        Value *ValueOperand = C->getArgOperand(i);
+        int ValueLevel= -1;
+        while(dyn_cast<LoadInst>(ValueOperand)){
+          ValueLevel++;
+          ValueOperand = (cast<LoadInst>(ValueOperand))->getPointerOperand();
+        }
+
+        auto V = Pointer(ValueOperand, ValueLevel);
+        STPCons.insert(new SetToPointer(FunctionParameters[std::make_pair(F, i)], V));
+
+      }
     }
   }
 

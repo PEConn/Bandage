@@ -24,3 +24,7 @@ int main(){
   Z(e);
 	return 0;
 }
+
+// CHECK: (a, 0) set to (e, 0)
+// CHECK: (b, 0) set to (e, -1)
+// CHECK: (c, 0) set to (e, 0)

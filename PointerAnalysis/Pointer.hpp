@@ -3,6 +3,7 @@
 
 #include <set>
 #include <string>
+#include <map>
 #include "llvm/IR/Instructions.h"
 
 using namespace llvm;
@@ -14,6 +15,7 @@ class Pointer{
 public:
   Value *id;
   int level;
+  static std::map<Value *, std::string> NameMap;
 
   Pointer(){}
   Pointer(Value *id, int level);

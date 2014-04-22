@@ -33,8 +33,9 @@ bool SetToPointer::TypesMatch(){
   Type *LhsType = Lhs.id->getType();
   Type *RhsType = Rhs.id->getType();
 
-  for(int i=0; i<Lhs.level; i++) LhsType = LhsType->getPointerElementType();
-  for(int i=0; i<Rhs.level; i++) RhsType = RhsType->getPointerElementType();
+  int LevelDiff = Lhs.level - Rhs.level;
+  for(int i=0; i<LevelDiff; i++) LhsType = LhsType->getPointerElementType();
+  for(int i=0; i>LevelDiff; i--) RhsType = RhsType->getPointerElementType();
 
   return LhsType == RhsType;
 }

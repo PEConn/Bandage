@@ -4,13 +4,24 @@
 #include "llvm/IR/Function.h"
 #include "llvm/Support/raw_ostream.h"
 
+std::map<Value *, std::string> Pointer::NameMap;
+
 Pointer::Pointer(Value *id, int level){
   this->id = id;
   this->level = level;
 }
 
 std::string Pointer::ToString() const{
-  return "(" + (id->hasName() ? (std::string)id->getName() : std::to_string((long)id)) + ", " + std::to_string(level) + ")";
+  std::string ret = "(";
+
+  if(NameMap.count(id))
+    ret += NameMap[id];
+  else if (id->hasName())
+    ret += (std::string)id->getName();
+  else
+    ret += std::to_string((long)id);
+  ret += ", " + std::to_string(level) + ")";
+  return ret;
 }
 
 std::string Pretty(enum CCuredPointerType PT){
