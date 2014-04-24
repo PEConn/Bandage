@@ -5,6 +5,7 @@
 #include "InstructionCollection.hpp"
 #include "FatPointers.hpp"
 #include "llvm/IR/Module.h"
+#include "../PointerAnalysis/Pointer.hpp"
 
 using namespace llvm;
 
@@ -12,9 +13,12 @@ class Transform{
 public:
   Transform(InstructionCollection *, std::map<Function *, Function *>, Module &);
   void Apply();
+  void AddPointerAnalysis(std::map<Pointer, CCuredPointerType> Qs, ValueToValueMapTy &VMap);
 private:
   InstructionCollection *Instructions;
   std::map<Function *, Function *> RawToFPFunctionMap;
+  std::map<Value *, Value *> FPToRawVariableMap;
+  std::map<Pointer, CCuredPointerType> Qs;
 
   DataLayout *DL;
   Function *Print;
@@ -27,6 +31,7 @@ private:
   void TransformArrayGeps();
 
   void TransformFunctionCalls();
+  void TransformExternalFunctionCalls();
   void TransformReturns();
 
   void RecreateGeps();

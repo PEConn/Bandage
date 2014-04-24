@@ -25,8 +25,20 @@ Transform::Transform(InstructionCollection *Instructions, std::map<Function *, F
   this->Print = M.getFunction("printf");
 }
 
+void Transform::AddPointerAnalysis(std::map<Pointer, CCuredPointerType> Qs, ValueToValueMapTy &VMap){
+  // Qs map maps (original pointers, level) to CCuredPointerType
+  // VMap maps (original pointers) to (duplicated pointer)
+  for(auto Q: Qs){
+    Pointer Key = Q.first;
+    Pointer NewKey = Pointer(VMap[Key.id], Key.level);
+    this->Qs[NewKey] = Qs[Key];
+  }
+}
+
 void Transform::Apply(){
   RecreateGeps();
+
+  TransformExternalFunctionCalls();
 
   TransformPointerAllocas();
   TransformPointerStores();
@@ -44,13 +56,14 @@ void Transform::TransformPointerAllocas(){
     iter++;
     IRBuilder<> B(iter);
 
-    Type *PointerType = PointerAlloc->getType()->getPointerElementType();
+    Type *PointerTy = PointerAlloc->getType()->getPointerElementType();
 
     // Construct the type for the fat pointer
-    Type *FatPointerType = FatPointers::GetFatPointerType(PointerType);
+    StructType *FatPointerType = FatPointers::GetFatPointerType(PointerTy);
 
     Value* FatPointer = B.CreateAlloca(FatPointerType, NULL, "fp" + PointerAlloc->getName());
     PointerAlloc->replaceAllUsesWith(FatPointer);
+    FPToRawVariableMap[FatPointer] = PointerAlloc;
     // All code below can use the original PointerAlloc
 
     // Initialize Value to current value and everything else to zero
@@ -61,18 +74,76 @@ void Transform::TransformPointerAllocas(){
     Value *FatPointerBase = B.CreateGEP(FatPointer, BaseIdx); 
     Value *FatPointerBound = B.CreateGEP(FatPointer, LengthIdx); 
 
-    Value *Address = B.CreateLoad(PointerAlloc);
-    B.CreateStore(Address, FatPointerValue);
-    B.CreateStore(Address, FatPointerBase);
-    B.CreateStore(Address, FatPointerBound);
+    // Set the base, value and bound to NULL
+    Value *Null = ConstantPointerNull::get(cast<PointerType>(FatPointerType->getElementType(0)));
+    B.CreateStore(Null, FatPointerValue);
+    B.CreateStore(Null, FatPointerBase);
+    B.CreateStore(Null, FatPointerBound);
   }
+}
+void TransformBitCast(BitCastInst *BC){
+  BasicBlock::iterator iter = BC;
+  iter++;
+  IRBuilder<> B(iter);
+
+  Type *InnerType = BC->getType();
+  while(CountPointerLevels(InnerType) > 1)
+    InnerType = InnerType->getPointerElementType();
+
+  // Create the innermost fat pointer
+  StructType *FatPointerType = FatPointers::GetFatPointerType(InnerType);
+  Value *FatPointer = B.CreateAlloca(FatPointerType);
+  Value *Null = ConstantPointerNull::get(cast<PointerType>(InnerType));
+  // The innermost pointer is unset
+  Value *NewBitCast = B.CreateBitCast(BC->getOperand(0), InnerType);
+  StoreInFatPointerValue(FatPointer, NewBitCast, B);
+  StoreInFatPointerBase(FatPointer, Null, B);
+  StoreInFatPointerBound(FatPointer, Null, B);
+
+  // Create the outer fat pointers
+  Value *PrevFatPointer = FatPointer;
+  Type *WrapperType = InnerType;
+  Type *IntegerType = IntegerType::getInt64Ty(BC->getContext());
+  Value *FatPointerSize = ConstantInt::get(IntegerType, 24);
+  while(WrapperType != BC->getType()){
+    WrapperType = WrapperType->getPointerTo();
+    StructType *FatPointerType = FatPointers::GetFatPointerType(WrapperType);
+    Value *FatPointer = B.CreateAlloca(FatPointerType);
+    // The innermost pointer is unset
+    StoreInFatPointerValue(FatPointer, PrevFatPointer, B);
+    StoreInFatPointerBase(FatPointer, PrevFatPointer, B);
+    Value *Bound = B.CreateAdd(
+        FatPointerSize, B.CreatePtrToInt(PrevFatPointer, IntegerType));
+    StoreInFatPointerBound(FatPointer, B.CreateIntToPtr(Bound, WrapperType), B);
+
+    PrevFatPointer = FatPointer;
+  }
+
+  BC->replaceAllUsesWith(PrevFatPointer);
+  errs() << "Need to transform:\n";
+  errs() << *BC << "\n";
+  errs() << "Pointer Levels: " << CountPointerLevels(BC->getType()) << "\n";
 }
 void Transform::TransformPointerStores(){
   for(auto PointerStore : Instructions->PointerStores){
+    errs() << "PointerStore:\n";
+    errs() << GetOriginator(PointerStore->getPointerOperand()).ToString() << "\t";
+    errs() << GetOriginator(PointerStore->getValueOperand(), -1).ToString() << "\n";
     IRBuilder<> B(PointerStore);
 
     Value* FatPointer = PointerStore->getPointerOperand(); 
     Value *Address = PointerStore->getValueOperand();
+
+    // Check if there are any bitcasts that need redoing
+    Value *T = Address;
+    BitCastInst *Bitcast = dyn_cast<BitCastInst>(T);
+    while(GetLinkType(T) != NO_LINK){
+      T = GetNextLink(T);
+      if(isa<BitCastInst>(T))
+        Bitcast = cast<BitCastInst>(T);
+    }
+    if(Bitcast)
+      TransformBitCast(Bitcast);
 
     // The types may match up - for example in the case of fat pointer parameters
     if(Address->getType() == FatPointer->getType()->getPointerElementType())
@@ -81,6 +152,7 @@ void Transform::TransformPointerStores(){
     Value* RawPointer = 
         B.CreateGEP(FatPointer, GetIndices(0, PointerStore->getContext()));
     Instruction *NewStore = B.CreateStore(Address, RawPointer);
+    errs() << *NewStore << "\n";
 
     B.SetInsertPoint(NewStore);
 
@@ -93,35 +165,53 @@ void Transform::TransformPointerStores(){
 }
 void Transform::TransformPointerLoads(){
   for(auto PointerLoad : Instructions->PointerLoads){
+    PointerDestination PD = GetDestination(PointerLoad);
+    assert(PD != RETURN && "Not implemented correct level on function return");
+
+    int startLevel = 0;
+    if(PD == CALL) startLevel = -1;
+    Pointer FPOrig = GetOriginator(PointerLoad, startLevel);
+
+    if(FPToRawVariableMap.count(FPOrig.id)){
+      Pointer Orig = Pointer(FPToRawVariableMap[FPOrig.id], FPOrig.level);
+      errs() << "PointerLoad:\n";
+      errs() << FPOrig.ToString() << " mapped to " << Orig.ToString();
+      errs() << " " << Pretty(Qs[Orig]) << "\n";
+    }
+
     IRBuilder<> B(PointerLoad);
 
     Value* FatPointer = PointerLoad->getPointerOperand(); 
     Value* RawPointer = 
         B.CreateGEP(FatPointer, GetIndices(0, PointerLoad->getContext()));
-    Value* Base = B.CreateLoad(
-        B.CreateGEP(FatPointer, GetIndices(1, PointerLoad->getContext())));
-    Value* Bound = B.CreateLoad(
-        B.CreateGEP(FatPointer, GetIndices(2, PointerLoad->getContext())));
 
     Value* NewLoad = B.CreateLoad(RawPointer);
 
-    Type* VoidPtrType = Type::getInt8Ty(PointerLoad->getContext())->getPointerTo();
-    // If the load is going to be used in a Gep, use the address from the
-    // Gep in the bounds check
-    if(auto Gep = dyn_cast<GetElementPtrInst>(PointerLoad->use_back())){
-      BasicBlock::iterator iter = Gep;
-      iter++;
+    bool BoundsChecking = false;
+    if(BoundsChecking){
+      Value* Base = B.CreateLoad(
+          B.CreateGEP(FatPointer, GetIndices(1, PointerLoad->getContext())));
+      Value* Bound = B.CreateLoad(
+          B.CreateGEP(FatPointer, GetIndices(2, PointerLoad->getContext())));
 
-      IRBuilder<> B(iter);
-      FatPointers::CreateBoundsCheck(B, 
-          B.CreatePointerCast(Gep, VoidPtrType), 
-          B.CreatePointerCast(Base, VoidPtrType), 
-          B.CreatePointerCast(Bound, VoidPtrType), Print, M);
-    } else {
-      FatPointers::CreateBoundsCheck(B, 
-          B.CreatePointerCast(B.CreateLoad(RawPointer), VoidPtrType), 
-          B.CreatePointerCast(Base, VoidPtrType),
-          B.CreatePointerCast(Bound, VoidPtrType), Print, M);
+      Type* VoidPtrType = Type::getInt8Ty(PointerLoad->getContext())->getPointerTo();
+      // If the load is going to be used in a Gep, use the address from the
+      // Gep in the bounds check
+      if(auto Gep = dyn_cast<GetElementPtrInst>(PointerLoad->use_back())){
+        BasicBlock::iterator iter = Gep;
+        iter++;
+
+        IRBuilder<> B(iter);
+        FatPointers::CreateBoundsCheck(B, 
+            B.CreatePointerCast(Gep, VoidPtrType), 
+            B.CreatePointerCast(Base, VoidPtrType), 
+            B.CreatePointerCast(Bound, VoidPtrType), Print, M);
+      } else {
+        FatPointers::CreateBoundsCheck(B, 
+            B.CreatePointerCast(B.CreateLoad(RawPointer), VoidPtrType), 
+            B.CreatePointerCast(Base, VoidPtrType),
+            B.CreatePointerCast(Bound, VoidPtrType), Print, M);
+      }
     }
 
     SetBoundsOnFree(PointerLoad->use_back(), FatPointer);
@@ -323,6 +413,13 @@ void Transform::TransformFunctionCalls(){
     // -- Replace the old call with the new one
     Call->replaceAllUsesWith(NewCall);
     Call->eraseFromParent();
+  }
+}
+void Transform::TransformExternalFunctionCalls(){
+  for(auto Call : Instructions->ExternalCalls){
+    if(!Call->getType()->isPointerTy())
+      continue;
+    errs() << *Call << "\n";
   }
 }
 

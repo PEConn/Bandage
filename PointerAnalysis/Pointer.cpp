@@ -18,6 +18,8 @@ std::string Pointer::ToString() const{
     ret += NameMap[id];
   else if (id->hasName())
     ret += (std::string)id->getName();
+  else if (auto F = dyn_cast<CallInst>(id))
+    ret += F->getCalledFunction()->getName();
   else
     ret += std::to_string((long)id);
   ret += ", " + std::to_string(level) + ")";

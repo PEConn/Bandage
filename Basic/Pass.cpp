@@ -23,6 +23,7 @@
 #include "FatPointers.hpp"
 
 #include "../PointerAnalysis/Pass.hpp"
+#include "../PointerAnalysis/Pointer.hpp"
 
 using namespace llvm;
 
@@ -41,10 +42,11 @@ struct Bandage : public ModulePass{
     auto *IC = new InstructionCollection(FD, TD);
     errs() << "Transforming\n";
     auto *T  = new Transform(IC, FD->RawToFPMap, M);
+    auto PA = &getAnalysis<PointerAnalysis>();
+    T->AddPointerAnalysis(PA->Qs, FD->VMap);
     T->Apply();
     errs() << "\n\n\n";
 
-    auto PA = &getAnalysis<PointerAnalysis>();
 
     return true;
   }

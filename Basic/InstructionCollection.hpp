@@ -22,6 +22,7 @@ public:
   std::set<LoadInst *>            PointerLoadsForPointerEquals;
 
   std::set<CallInst *>            Calls;
+  std::set<CallInst *>            ExternalCalls;
   std::set<ReturnInst *>          Returns;
 
   std::set<AllocaInst *>          ArrayAllocas;

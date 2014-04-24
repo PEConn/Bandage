@@ -76,8 +76,10 @@ void InstructionCollection::CheckForPointerStore(Instruction *I){
 void InstructionCollection::CheckForPointerLoad(Instruction *I){
   if(LoadInst *L = dyn_cast<LoadInst>(I)){
     if(!L->getPointerOperand()->getType()->getPointerElementType()->isPointerTy())
+    //if(!L->getPointerOperand()->getType()->isPointerTy())
       return;
 
+    errs() << *L << "\n";
     PointerLoads.insert(L);
   }
 }
@@ -93,6 +95,8 @@ void InstructionCollection::CheckForStructGep(Instruction *I){
 void InstructionCollection::AddPointerEquals(){
   for(auto L: PointerLoads){
     if(auto C = dyn_cast<StoreInst>(L->use_back())){
+      if(L->getType() != C->getValueOperand()->getType())
+        continue;
       if(PointerStores.count(C)){
         PointerStoresFromPointerEquals.insert(C);
         PointerLoadsForPointerEquals.insert(L);
@@ -104,8 +108,10 @@ void InstructionCollection::AddPointerEquals(){
 void InstructionCollection::CheckForFunctionCall(Instruction *I){
   if(CallInst *C = dyn_cast<CallInst>(I)){
     // Check if this is a transformable function
-    if(!FD->GetRawFunctions().count(C->getCalledFunction()))
+    if(!FD->GetRawFunctions().count(C->getCalledFunction())){
+      ExternalCalls.insert(C);
       return;
+    }
 
     Calls.insert(C);
 

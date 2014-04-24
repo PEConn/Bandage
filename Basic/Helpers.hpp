@@ -6,6 +6,8 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IRBuilder.h"
 
+#include "../PointerAnalysis/Pointer.hpp"
+
 using namespace llvm;
 
 const std::string red = "\033[31m";
@@ -29,5 +31,20 @@ unsigned int GetArrayElementSizeInBits(AllocaInst *, DataLayout *);
 void removeTerminator(BasicBlock *BB);
 std::vector<Value *> GetIndices(int val, LLVMContext& C);
 Value* Str(IRBuilder<> B, std::string str);
+
+enum LinkType {LOAD, GEP, CAST, NO_LINK};
+
+LinkType GetLinkType(Value *V);
+Value *GetNextLink(Value *Link);
+Pointer GetOriginator(Value *Link, int level=0);
+
+enum PointerDestination {OTHER, RETURN, CALL, STORE};
+PointerDestination GetDestination(Value *Link);
+
+int CountPointerLevels(Type *);
+
+void StoreInFatPointerValue(Value *FatPointer, Value *Val, IRBuilder<> &B);
+void StoreInFatPointerBase(Value *FatPointer, Value *Val, IRBuilder<> &B);
+void StoreInFatPointerBound(Value *FatPointer, Value *Val, IRBuilder<> &B);
 
 #endif
