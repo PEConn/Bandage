@@ -21,6 +21,10 @@
 #include "InstructionCollection.hpp"
 #include "Transform.hpp"
 #include "FatPointers.hpp"
+#include "PointerUse.hpp"
+#include "PointerAllocaTransform.hpp"
+#include "PointerUseCollection.hpp"
+#include "PointerUseTransform.hpp"
 
 #include "../PointerAnalysis/Pass.hpp"
 
@@ -37,12 +41,26 @@ struct Bandage : public ModulePass{
     auto *TD = new TypeDuplicater(M, &getAnalysis<FindUsedTypes>());
     errs() << "Duplicating Functions\n";
     auto *FD = new FunctionDuplicater(M, TD);
+    errs() << "Transforming Pointer Allocations\n";
+    auto *PAT = new PointerAllocaTransform(FD->GetFPFunctions());
+    errs() << "Collecting Pointer Uses\n";
+    auto *PUC = new PointerUseCollection(FD);
+    errs() << "Transform Pointer Uses\n";
+    auto *T = new PointerUseTransform(PUC, M);
+    T->Apply();
+
+
+
+
+
+    /*  
     errs() << "Collecting Instructions\n";
     auto *IC = new InstructionCollection(FD, TD);
     errs() << "Transforming\n";
     auto *T  = new Transform(IC, FD->RawToFPMap, M);
     T->Apply();
     errs() << "\n\n\n";
+    */
 
     auto PA = &getAnalysis<PointerAnalysis>();
 

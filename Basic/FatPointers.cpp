@@ -28,6 +28,14 @@ Type* FatPointers::GetFatPointerType(Type *PointerType){
   FatPointers::FatPointerTypes[PointerType] = FatPointerType;
   return FatPointerType;
 }
+
+bool FatPointers::IsFatPointerType(Type *T){
+  for(auto Pair: FatPointerTypes)
+    if(Pair.second == T)
+      return true;
+  return false;
+}
+
 void FatPointers::CreateBoundsCheck(IRBuilder<> &B, Value *Val, Value *Base, Value *Bound, Function *Print, Module *M){
   if(BoundsChecks.count(Val->getType()) == 0)
     CreateBoundsCheckFunction(Val->getType(), Print, M);

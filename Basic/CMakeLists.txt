@@ -6,6 +6,10 @@ add_llvm_loadable_module(LLVMBandage
   InstructionCollection.cpp
   Transform.cpp
   Helpers.cpp
+  PointerAllocaTransform.cpp
+  PointerUse.cpp
+  PointerUseCollection.cpp
+  PointerUseTransform.cpp
   ../PointerAnalysis/Pass.cpp
   ../PointerAnalysis/Pointer.cpp
   ../PointerAnalysis/Constraints.cpp

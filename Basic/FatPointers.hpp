@@ -11,6 +11,7 @@ using namespace llvm;
 class FatPointers{
 public:
   static Type* GetFatPointerType(Type *PointerType);
+  static bool IsFatPointerType(Type *T);
   // The 'Print' function will eventually be changed to the function to call on
   // OutOfBounds
   static void CreateBoundsCheck(IRBuilder<> &B,
