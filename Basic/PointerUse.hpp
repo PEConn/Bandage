@@ -22,7 +22,6 @@ public:
   virtual bool IsValid();
   virtual ~PointerAssignment(){}
   virtual void DispatchTransform(PointerUseTransform *);
-private:
   void FollowChains();
   StoreInst *Store;
   std::vector<Value *> PointerChain;
@@ -50,7 +49,6 @@ public:
   virtual ~PointerParameter (){}
   virtual void DispatchTransform(PointerUseTransform *);
   std::vector<std::vector<Value *>> ValueChains;
-private:
   void FollowChains();
   CallInst *Call;
 };

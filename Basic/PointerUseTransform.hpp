@@ -16,6 +16,7 @@ public:
   void ApplyTo(PointerParameter *PP);
 
 private:
+  Value *RecreateValueChain(std::vector<Value *> Chain, IRBuilder<> &B);
   PointerUseCollection *PUC;
   Module *M;
 };

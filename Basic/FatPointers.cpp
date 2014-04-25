@@ -4,13 +4,31 @@
 #include "llvm/IR/Function.h"
 #include "llvm/Support/raw_ostream.h"
 
-std::map<Type *, Type *> FatPointers::FatPointerTypes;
+std::map<Type *, StructType *> FatPointers::FatPointerTypes;
 std::map<Type *, Function *> FatPointers::BoundsChecks;
 
-Type* FatPointers::GetFatPointerType(Type *PointerType){
+Value* FatPointers::CreateFatPointer(Type *PointerType, IRBuilder<> &B, std::string Name){
+  StructType *FatPointerType = FatPointers::GetFatPointerType(PointerType);
+  Value* FatPointer = B.CreateAlloca(FatPointerType, NULL, Name);
+  return FatPointer;
+}
+
+ConstantPointerNull* FatPointers::GetFieldNull(Value *FatPointer){
+  StructType *ST = cast<StructType>(FatPointer->getType()->getPointerElementType());
+  ConstantPointerNull *Null = ConstantPointerNull::get(
+      cast<PointerType>(ST->getElementType(0)));
+  return Null;
+}
+StructType* FatPointers::GetFatPointerType(Type *PointerType){
+  Type *OriginalPointerType = PointerType;
   if(FatPointers::FatPointerTypes.count(PointerType) == 1)
     return FatPointerTypes[PointerType];
   
+  // Deal with nested pointers
+  if(PointerType->getPointerElementType()->isPointerTy())
+    PointerType = GetFatPointerType(
+        PointerType->getPointerElementType())->getPointerTo();
+
   std::vector<Type *> FatPointerMembers;	
   FatPointerMembers.push_back(PointerType);
   FatPointerMembers.push_back(PointerType);
@@ -21,11 +39,11 @@ Type* FatPointers::GetFatPointerType(Type *PointerType){
   // "struct.StructureName"
   if(StructType *ST = dyn_cast<StructType>(PointerType->getPointerElementType())){
     if(ST->hasName())
-      Name += ST->getName().str().substr(6);
+      Name += ST->getName().str();
   }
-  Type *FatPointerType = StructType::create(FatPointerMembers, Name);
+  StructType *FatPointerType = StructType::create(FatPointerMembers, Name);
 
-  FatPointers::FatPointerTypes[PointerType] = FatPointerType;
+  FatPointers::FatPointerTypes[OriginalPointerType] = FatPointerType;
   return FatPointerType;
 }
 

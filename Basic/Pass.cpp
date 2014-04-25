@@ -41,10 +41,10 @@ struct Bandage : public ModulePass{
     auto *TD = new TypeDuplicater(M, &getAnalysis<FindUsedTypes>());
     errs() << "Duplicating Functions\n";
     auto *FD = new FunctionDuplicater(M, TD);
-    errs() << "Transforming Pointer Allocations\n";
-    auto *PAT = new PointerAllocaTransform(FD->GetFPFunctions());
     errs() << "Collecting Pointer Uses\n";
     auto *PUC = new PointerUseCollection(FD);
+    errs() << "Transforming Pointer Allocations\n";
+    auto *PAT = new PointerAllocaTransform(FD->GetFPFunctions());
     errs() << "Transform Pointer Uses\n";
     auto *T = new PointerUseTransform(PUC, M);
     T->Apply();

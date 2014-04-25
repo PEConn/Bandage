@@ -3,29 +3,7 @@
 #include "llvm/Support/raw_ostream.h"
 #include "PointerUseTransform.hpp"
 #include "FatPointers.hpp"
-
-enum LinkType {LOAD, GEP, CAST, NO_LINK};
-
-LinkType GetLinkType(Value *V){
-  if(isa<LoadInst>(V))
-    return LOAD;
-  else if (isa<GetElementPtrInst>(V))
-    return GEP;
-  else if (isa<CastInst>(V))
-    return CAST;
-  else
-    return NO_LINK;
-}
-Value *GetNextLink(Value *Link){
-  if(auto L = dyn_cast<LoadInst>(Link))
-    return L->getPointerOperand();
-  else if(auto G = dyn_cast<GetElementPtrInst>(Link))
-    return G->getPointerOperand();
-  else if(auto B = dyn_cast<CastInst>(Link))
-    return B->getOperand(0);
-  assert(false && "GetNextLink has been given invalid link type");
-  return NULL;
-}
+#include "../Basic/Helpers.hpp"
 
 PointerAssignment::PointerAssignment(StoreInst *S){
   this->Store = S;
@@ -41,6 +19,9 @@ PointerParameter::PointerParameter(CallInst *C){
 }
 
 void PointerAssignment::FollowChains(){
+  ValueChain.clear();
+  PointerChain.clear();
+
   Value *ValueLink = Store->getValueOperand();
   Value *PointerLink = Store->getPointerOperand();
 
@@ -57,6 +38,8 @@ void PointerAssignment::FollowChains(){
   PointerChain.push_back(PointerLink);
 }
 void PointerReturn::FollowChains(){
+  ValueChain.clear();
+
   Value *ValueLink = Return->getReturnValue();
   if(!ValueLink)
     return;
@@ -68,6 +51,8 @@ void PointerReturn::FollowChains(){
   ValueChain.push_back(ValueLink);
 }
 void PointerParameter::FollowChains(){
+  ValueChains.clear();
+
   for(int i=0; i<Call->getNumArgOperands(); i++){
     Value *ValueLink = Call->getArgOperand(i);
     std::vector<Value *> ValueChain;
@@ -84,11 +69,11 @@ void PointerParameter::FollowChains(){
 }
 
 bool PointerAssignment::IsValid(){
-  Type *T = PointerChain.back()->getType()->getPointerElementType();
-  bool RawPtr = T->isPointerTy();
-  bool FatPtr = FatPointers::IsFatPointerType(T);
+  Type *TP = PointerChain.back()->getType()->getPointerElementType();
+  Type *TV = ValueChain.back()->getType();
+  bool RawPtr = TP->isPointerTy() || TV->isPointerTy();
 
-  return FatPtr;
+  return RawPtr;
 }
 bool PointerReturn::IsValid(){
   if(!Return->getReturnValue())

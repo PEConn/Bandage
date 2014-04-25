@@ -1,4 +1,5 @@
 #include "PointerAllocaTransform.hpp"
+#include <string>
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/Support/InstIterator.h"
 #include "Helpers.hpp"
@@ -28,27 +29,16 @@ void PointerAllocaTransform::TransformAllocas(){
     iter++;
     IRBuilder<> B(iter);
 
-    Type *PointerType = PointerAlloc->getType()->getPointerElementType();
-
+    Type *PointerTy = PointerAlloc->getType()->getPointerElementType();
+    std::string Name = "FP." + PointerAlloc->getName().str();
     // Construct the type for the fat pointer
-    Type *FatPointerType = FatPointers::GetFatPointerType(PointerType);
-
-    Value* FatPointer = B.CreateAlloca(FatPointerType, NULL, "fp" + PointerAlloc->getName());
+    Value *FatPointer = FatPointers::CreateFatPointer(PointerTy, B, Name);
     PointerAlloc->replaceAllUsesWith(FatPointer);
-    // All code below can use the original PointerAlloc
 
-    // Initialize Value to current value and everything else to zero
-    /*std::vector<Value *> ValueIdx = GetIndices(0, PointerAlloc->getContext());
-    std::vector<Value *> BaseIdx = GetIndices(1, PointerAlloc->getContext());
-    std::vector<Value *> LengthIdx = GetIndices(2, PointerAlloc->getContext());
-    Value *FatPointerValue = B.CreateGEP(FatPointer, ValueIdx); 
-    Value *FatPointerBase = B.CreateGEP(FatPointer, BaseIdx); 
-    Value *FatPointerBound = B.CreateGEP(FatPointer, LengthIdx); 
-
-    Value *Address = B.CreateLoad(PointerAlloc);
-    B.CreateStore(Address, FatPointerValue);
-    B.CreateStore(Address, FatPointerBase);
-    B.CreateStore(Address, FatPointerBound);
-    */
+    // Initialise the value, base and bound to null
+    Value *Null = FatPointers::GetFieldNull(FatPointer);
+    StoreInFatPointerValue(FatPointer, Null, B);
+    StoreInFatPointerBase(FatPointer, Null, B);
+    StoreInFatPointerBound(FatPointer, Null, B);
   }
 }

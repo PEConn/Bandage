@@ -6,6 +6,110 @@
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/Constants.h"
 
+LinkType GetLinkType(Value *V){
+  if(isa<LoadInst>(V))
+    return LOAD;
+  else if (isa<GetElementPtrInst>(V))
+    return GEP;
+  else if (isa<CastInst>(V))
+    return CAST;
+  else
+    return NO_LINK;
+}
+Value *GetNextLink(Value *Link){
+  if(auto L = dyn_cast<LoadInst>(Link))
+    return L->getPointerOperand();
+  else if(auto G = dyn_cast<GetElementPtrInst>(Link))
+    return G->getPointerOperand();
+  else if(auto B = dyn_cast<CastInst>(Link))
+    return B->getOperand(0);
+  assert(false && "GetNextLink has been given invalid link type");
+  return NULL;
+}
+Pointer GetOriginator(Value *Link, int level){
+  while(GetLinkType(Link) != NO_LINK){
+    if(GetLinkType(Link) == LOAD)
+      (level)++;
+    Link = GetNextLink(Link);
+  }
+  return Pointer(Link, level);
+}
+PointerDestination GetDestination(Value *Link){
+  while(true){
+    if(isa<ReturnInst>(Link))
+      return RETURN;
+    else if(isa<CallInst>(Link))
+      return CALL;
+    else if(isa<StoreInst>(Link))
+      return STORE;
+    Link = Link->use_back();
+  }
+  return OTHER;
+}
+int CountPointerLevels(Type *T){
+  int level =0;
+  while(T->isPointerTy()){
+    level++;
+    T = T->getPointerElementType();
+  }
+  return level;
+}
+
+void StoreInFatPointerValue(Value *FatPointer, Value *Val, IRBuilder<> &B){
+  std::vector<Value *> FieldIdx = GetIndices(0, FatPointer->getContext());
+  Value *FatPointerField = B.CreateGEP(FatPointer, FieldIdx, "Value"); 
+  B.CreateStore(Val, FatPointerField);
+}
+void StoreInFatPointerBase(Value *FatPointer, Value *Val, IRBuilder<> &B){
+  std::vector<Value *> FieldIdx = GetIndices(1, FatPointer->getContext());
+  Value *FatPointerField = B.CreateGEP(FatPointer, FieldIdx, "Base"); 
+  B.CreateStore(Val, FatPointerField);
+}
+void StoreInFatPointerBound(Value *FatPointer, Value *Val, IRBuilder<> &B){
+  std::vector<Value *> FieldIdx = GetIndices(2, FatPointer->getContext());
+  Value *FatPointerField = B.CreateGEP(FatPointer, FieldIdx, "Bound"); 
+  B.CreateStore(Val, FatPointerField);
+}
+Value *LoadFatPointerValue(Value *FatPointer, IRBuilder<> &B){
+  return B.CreateLoad(GetFatPointerValueAddr(FatPointer, B));
+}
+Value *LoadFatPointerBase(Value *FatPointer, IRBuilder<> &B){
+  return B.CreateLoad(GetFatPointerBaseAddr(FatPointer, B));
+}
+Value *LoadFatPointerBound(Value *FatPointer, IRBuilder<> &B){
+  return B.CreateLoad(GetFatPointerBoundAddr(FatPointer, B));
+}
+
+Value *GetFatPointerValueAddr(Value *FatPointer, IRBuilder<> &B){
+  std::vector<Value *> FieldIdx = GetIndices(0, FatPointer->getContext());
+  return B.CreateGEP(FatPointer, FieldIdx, "Value"); 
+}
+Value *GetFatPointerBaseAddr(Value *FatPointer, IRBuilder<> &B){
+  std::vector<Value *> FieldIdx = GetIndices(1, FatPointer->getContext());
+  return B.CreateGEP(FatPointer, FieldIdx, "Base"); 
+}
+Value *GetFatPointerBoundAddr(Value *FatPointer, IRBuilder<> &B){
+  std::vector<Value *> FieldIdx = GetIndices(2, FatPointer->getContext());
+  return B.CreateGEP(FatPointer, FieldIdx, "Bound"); 
+}
+
+Value *GetSizeValue(Type *T, IRBuilder<> &B){
+  std::vector<Value *> Idxs;
+  Idxs.push_back(ConstantInt::get(IntegerType::getInt32Ty(T->getContext()), 1));
+  return B.CreateGEP(ConstantPointerNull::get(cast<PointerType>(T)), Idxs);
+}
+
+void SetFatPointerToAddress(Value *FatPointer, Value *Address, IRBuilder<> B){
+  StoreInFatPointerValue(FatPointer, Address, B);
+  StoreInFatPointerBase(FatPointer, Address, B);
+  Type *IntegerType = IntegerType::getInt64Ty(Address->getContext());
+  Value *Size = GetSizeValue(Address->getType(), B);
+  Value *Bound = B.CreateAdd(
+      B.CreatePtrToInt(Size, IntegerType), 
+      B.CreatePtrToInt(Address, IntegerType));
+  StoreInFatPointerBound(FatPointer, B.CreateIntToPtr(Bound, Address->getType()), B);
+}
+
 unsigned int GetNumElementsInArray(AllocaInst * ArrayAlloc){
     Type *ArrayType = ArrayAlloc->getAllocatedType();
     return ArrayType->getVectorNumElements();
