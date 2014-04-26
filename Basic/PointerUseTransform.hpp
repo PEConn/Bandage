@@ -14,6 +14,7 @@ public:
   void ApplyTo(PointerAssignment *PA);
   void ApplyTo(PointerReturn *PR);
   void ApplyTo(PointerParameter *PP);
+  void ApplyTo(PointerCompare *PC);
 
 private:
   Value *RecreateValueChain(std::vector<Value *> Chain, IRBuilder<> &B);

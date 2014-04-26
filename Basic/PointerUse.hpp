@@ -23,11 +23,23 @@ public:
   virtual ~PointerAssignment(){}
   virtual void DispatchTransform(PointerUseTransform *);
   void FollowChains();
+  LoadInst *Load;
   StoreInst *Store;
   std::vector<Value *> PointerChain;
   std::vector<Value *> ValueChain;
 };
-
+class PointerCompare : public PointerUse{
+public:
+  PointerCompare(CmpInst *C);
+  virtual void Print();
+  virtual bool IsValid();
+  virtual ~PointerCompare(){}
+  virtual void DispatchTransform(PointerUseTransform *);
+  void FollowChains();
+  CmpInst *Cmp;
+  std::vector<Value *> Chain1;
+  std::vector<Value *> Chain2;
+};
 class PointerReturn : public PointerUse{
 public:
   PointerReturn(ReturnInst *R);
@@ -40,7 +52,6 @@ private:
   ReturnInst *Return;
   std::vector<Value *> ValueChain;
 };
-
 class PointerParameter : public PointerUse{
 public:
   PointerParameter(CallInst *C);

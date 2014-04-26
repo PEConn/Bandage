@@ -17,6 +17,8 @@ void PointerUseCollection::CollectInstructions(std::set<Function *> Functions){
         PotentialUses.push_back(new PointerReturn(R));
       } else if(auto C = dyn_cast<CallInst>(I)){
         PotentialUses.push_back(new PointerParameter(C));
+      } else if(auto C = dyn_cast<CmpInst>(I)){
+        PotentialUses.push_back(new PointerCompare(C));
       }
     }
   }
