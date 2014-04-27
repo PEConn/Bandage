@@ -9,7 +9,8 @@
 
 class PointerUseTransform{
 public:
-  PointerUseTransform(PointerUseCollection *PUC, Module &M);
+  PointerUseTransform(PointerUseCollection *PUC, Module &M, std::map<Function *, Function *> RawToFPMap);
+
   void Apply();
   void ApplyTo(PointerAssignment *PA);
   void ApplyTo(PointerReturn *PR);
@@ -21,6 +22,7 @@ private:
   PointerUseCollection *PUC;
   Module *M;
   Function *Print;
+  std::map<Function *, Function *> RawToFPMap;
 };
 
 

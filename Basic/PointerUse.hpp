@@ -47,9 +47,9 @@ public:
   virtual bool IsValid();
   virtual ~PointerReturn (){}
   virtual void DispatchTransform(PointerUseTransform *);
-private:
   void FollowChains();
   ReturnInst *Return;
+  LoadInst *Load;
   std::vector<Value *> ValueChain;
 };
 class PointerParameter : public PointerUse{
@@ -60,8 +60,10 @@ public:
   virtual ~PointerParameter (){}
   virtual void DispatchTransform(PointerUseTransform *);
   std::vector<std::vector<Value *>> ValueChains;
+  std::vector<LoadInst *> Loads;
   void FollowChains();
   CallInst *Call;
 };
+
 
 #endif

@@ -72,6 +72,11 @@ void PointerReturn::FollowChains(){
   Value *ValueLink = Return->getReturnValue();
   if(!ValueLink)
     return;
+  
+  auto L = dyn_cast<LoadInst>(ValueLink);
+  Load = L;
+  if(L)
+    ValueLink = GetNextLink(ValueLink);
 
   while(GetLinkType(ValueLink) != NO_LINK){
     ValueChain.push_back(ValueLink);
@@ -86,14 +91,18 @@ void PointerParameter::FollowChains(){
     Value *ValueLink = Call->getArgOperand(i);
     std::vector<Value *> ValueChain;
 
+    auto L = dyn_cast<LoadInst>(ValueLink);
+    Loads.push_back(L);
+    if(L)
+      ValueLink = GetNextLink(ValueLink);
+
     while(GetLinkType(ValueLink) != NO_LINK){
       ValueChain.push_back(ValueLink);
       ValueLink = GetNextLink(ValueLink);
     }
     ValueChain.push_back(ValueLink);
 
-    if(ValueLink->getType()->isPointerTy())
-      ValueChains.push_back(ValueChain);
+    ValueChains.push_back(ValueChain);
   }
 }
 
@@ -119,7 +128,8 @@ bool PointerReturn::IsValid(){
   return false;
 }
 bool PointerParameter::IsValid(){
-  return ValueChains.size() != 0;
+  return true;
+  //return ValueChains.size() != 0;
 }
 
 void PointerAssignment::Print(){

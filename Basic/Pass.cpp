@@ -46,7 +46,7 @@ struct Bandage : public ModulePass{
     errs() << "Transforming Pointer Allocations\n";
     auto *PAT = new PointerAllocaTransform(FD->GetFPFunctions());
     errs() << "Transform Pointer Uses\n";
-    auto *T = new PointerUseTransform(PUC, M);
+    auto *T = new PointerUseTransform(PUC, M, FD->RawToFPMap);
     T->Apply();
     errs() << "Done\n";
 

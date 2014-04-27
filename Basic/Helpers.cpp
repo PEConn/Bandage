@@ -6,6 +6,8 @@
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/Constants.h"
 
+#include "FatPointers.hpp"
+
 LinkType GetLinkType(Value *V){
   if(isa<LoadInst>(V))
     return LOAD;
@@ -193,4 +195,22 @@ std::vector<Value *> GetIndices(int val, LLVMContext& C){
 
 Value* Str(IRBuilder<> B, std::string str){
   return B.CreateGlobalStringPtr(StringRef(blue + str + "\n" + reset));
+}
+Value *ConvertFatPointerToRawPointer(Value *FatPointer, IRBuilder<> B){
+  // Follow the fat pointer until its end
+  int Level = 0;
+  //StructType *T = dyn_cast<StructType>(FatPointer->getType());
+  Type *T = FatPointer->getType()->getPointerElementType();
+  Value *V = FatPointer;
+
+  while(FatPointers::IsFatPointerType(T)){
+    T = dyn_cast<StructType>(T)->getElementType(0);
+    V = LoadFatPointerValue(V, B);
+  }
+  for(int i=0; i<Level; i++)
+    T = T->getPointerTo();
+
+  Value *Ret = B.CreatePointerCast(V, T);
+
+  return Ret;
 }
