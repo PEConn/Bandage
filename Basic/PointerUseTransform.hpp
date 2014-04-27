@@ -20,6 +20,7 @@ private:
   Value *RecreateValueChain(std::vector<Value *> Chain, IRBuilder<> &B);
   PointerUseCollection *PUC;
   Module *M;
+  Function *Print;
 };
 
 

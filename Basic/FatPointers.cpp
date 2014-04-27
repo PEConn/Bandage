@@ -83,9 +83,11 @@ void FatPointers::CreateBoundsCheckFunction(Type *PointerType, Function *Print, 
       "UnsetCheck", BoundsCheck);
   IRBuilder<> B(UnsetCheck);
 
-  //B.CreateCall2(Print, Str(B, "Base:  %p"), Base);
-  //B.CreateCall2(Print, Str(B, "Value: %p"), Val);
-  //B.CreateCall2(Print, Str(B, "Bound: %p"), Bound);
+  if(Print){
+    B.CreateCall2(Print, Str(B, "Base:  %p"), Base);
+    B.CreateCall2(Print, Str(B, "Value: %p"), Val);
+    B.CreateCall2(Print, Str(B, "Bound: %p"), Bound);
+  }
 
   Type *IntegerType = IntegerType::getInt64Ty(Val->getContext());
 
@@ -125,17 +127,20 @@ void FatPointers::CreateBoundsCheckFunction(Type *PointerType, Function *Print, 
   LLVMContext *C = &IsInBounds->getContext();
   BasicBlock *Invalid = BasicBlock::Create(*C, "Invalid", BoundsCheck);
   B.SetInsertPoint(Invalid);
-  B.CreateCall(Print, Str(B, "Invalid"));
+  if(Print)
+    B.CreateCall(Print, Str(B, "Invalid"));
   B.CreateBr(AfterChecks);
 
   BasicBlock *Unset = BasicBlock::Create(*C, "Unset", BoundsCheck);
   B.SetInsertPoint(Unset);
-  B.CreateCall(Print, Str(B, "Unset"));
+  if(Print)
+    B.CreateCall(Print, Str(B, "Unset"));
   B.CreateBr(AfterChecks);
 
   BasicBlock *OutOfBounds = BasicBlock::Create(*C, "OutOfBounds", BoundsCheck);
   B.SetInsertPoint(OutOfBounds);
-  B.CreateCall(Print, Str(B, "OutOfBounds"));
+  if(Print)
+    B.CreateCall(Print, Str(B, "OutOfBounds"));
   B.CreateBr(AfterChecks);
 
   // Link the Check basic blocks to their failures

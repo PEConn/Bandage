@@ -96,7 +96,8 @@ Value *GetFatPointerBoundAddr(Value *FatPointer, IRBuilder<> &B){
 Value *GetSizeValue(Type *T, IRBuilder<> &B){
   std::vector<Value *> Idxs;
   Idxs.push_back(ConstantInt::get(IntegerType::getInt32Ty(T->getContext()), 1));
-  return B.CreateGEP(ConstantPointerNull::get(cast<PointerType>(T)), Idxs);
+  Value *Ret = B.CreateGEP(ConstantPointerNull::get(cast<PointerType>(T->getPointerTo())), Idxs);
+  return Ret;
 }
 
 void SetFatPointerToAddress(Value *FatPointer, Value *Address, IRBuilder<> B){
@@ -108,6 +109,16 @@ void SetFatPointerToAddress(Value *FatPointer, Value *Address, IRBuilder<> B){
       B.CreatePtrToInt(Size, IntegerType), 
       B.CreatePtrToInt(Address, IntegerType));
   StoreInFatPointerBound(FatPointer, B.CreateIntToPtr(Bound, Address->getType()), B);
+}
+
+void SetFatPointerBaseAndBound(Value *FP, Value *Base, Value *Size, IRBuilder<> B){
+  StoreInFatPointerBase(FP, Base, B);
+  Type *IntegerType = IntegerType::getInt64Ty(Base->getContext());
+  Value *Bound = B.CreateIntToPtr(B.CreateAdd(
+        B.CreatePtrToInt(Size, IntegerType), 
+        B.CreatePtrToInt(Base, IntegerType)),
+      Base->getType());
+  StoreInFatPointerBound(FP, Bound, B);
 }
 
 unsigned int GetNumElementsInArray(AllocaInst * ArrayAlloc){

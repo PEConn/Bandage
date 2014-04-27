@@ -7,6 +7,7 @@
 PointerUseTransform::PointerUseTransform(PointerUseCollection *PUC, Module &M){
   this->PUC = PUC;
   this->M = &M;
+  this->Print = M.getFunction("printf");
 }
 
 void PointerUseTransform::Apply(){
@@ -28,10 +29,12 @@ void PointerUseTransform::ApplyTo(PointerAssignment *PA){
         // Set equal to a constant string
         Value *FP = FatPointers::CreateFatPointer(C->getType(), B);
 
-        // TODO: Set correct bounds
+        // Set the bounds from the constant string
+        // This could be replaced with a constant calculation
+        Type *CharArray = C->getPointerOperand()->getType()->getPointerElementType();
+        Value *Size = GetSizeValue(CharArray, B);
         StoreInFatPointerValue(FP, C, B);
-        StoreInFatPointerBase(FP, C, B);
-        StoreInFatPointerBound(FP, C, B);
+        SetFatPointerBaseAndBound(FP, C, Size, B);
 
         B.CreateStore(B.CreateLoad(FP), Lhs);
       } else {
@@ -106,6 +109,7 @@ void PointerUseTransform::ApplyTo(PointerCompare *PC){
 
 Value *PointerUseTransform::RecreateValueChain(std::vector<Value *> Chain, IRBuilder<> &B){
   Value *Rhs = Chain.back();
+  Value *PrevFatPointer = NULL;
 
   for(int i=Chain.size() - 2; i>= 0; i--){
     Value *CurrentLink = Chain[i];
@@ -114,6 +118,12 @@ Value *PointerUseTransform::RecreateValueChain(std::vector<Value *> Chain, IRBui
       // that will later be cast to a fat pointer type
       if(FatPointers::IsFatPointerType(
             Rhs->getType()->getPointerElementType())){
+        // Remember the most recent fat pointer so we can carry over bounds on
+        // GEP or Cast
+        PrevFatPointer = Rhs;
+
+        FatPointers::CreateBoundsCheck(B, LoadFatPointerValue(Rhs, B),
+            LoadFatPointerBase(Rhs, B), LoadFatPointerBound(Rhs, B), Print, M);
         Rhs = LoadFatPointerValue(Rhs, B);
       } else {
         Rhs = B.CreateLoad(Rhs);
@@ -127,17 +137,20 @@ Value *PointerUseTransform::RecreateValueChain(std::vector<Value *> Chain, IRBui
 
       Value *NewGep = B.CreateGEP(Rhs, Indices);
 
-      // TODO: Carry bounds over here
       Value *FP = FatPointers::CreateFatPointer(NewGep->getType(), B);
       Value *Null = FatPointers::GetFieldNull(FP);
       StoreInFatPointerValue(FP, NewGep, B);
-      StoreInFatPointerBase(FP, Null, B);
-      StoreInFatPointerBound(FP, Null, B);
+      if(PrevFatPointer){
+        StoreInFatPointerBase(FP, LoadFatPointerBase(PrevFatPointer, B), B);
+        StoreInFatPointerBound(FP, LoadFatPointerBound(PrevFatPointer, B), B);
+      } else {
+        errs() << "GEP without previous fat pointer\n";
+        StoreInFatPointerBase(FP, Null, B);
+        StoreInFatPointerBound(FP, Null, B);
+      }
       //Rhs = B.CreateLoad(FP);
       Rhs = FP;
-      errs() << *Rhs << "\n";
     } else if(GetLinkType(CurrentLink) == CAST){
-
       CastInst *Cast = cast<CastInst>(CurrentLink);
       // If the destination type was a pointer, we need to create
       // a fat pointer

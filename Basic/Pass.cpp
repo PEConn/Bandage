@@ -48,6 +48,7 @@ struct Bandage : public ModulePass{
     errs() << "Transform Pointer Uses\n";
     auto *T = new PointerUseTransform(PUC, M);
     T->Apply();
+    errs() << "Done\n";
 
 
 
