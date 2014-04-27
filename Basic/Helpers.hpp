@@ -58,4 +58,5 @@ Value *GetSizeValue(Type *T, IRBuilder<> &B);
 
 void SetFatPointerToAddress(Value *FatPointer, Value *Address, IRBuilder<> B);
 void SetFatPointerBaseAndBound(Value *FP, Value *Base, Value *Size, IRBuilder<> B);
+Value *CalculateBound(Value *Base, Value *Size, IRBuilder<> B);
 #endif

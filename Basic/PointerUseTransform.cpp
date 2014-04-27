@@ -59,7 +59,6 @@ void PointerUseTransform::ApplyTo(PointerAssignment *PA){
         Rhs = LoadFatPointerValue(Rhs, B);
       else
         Lhs = LoadFatPointerValue(Lhs, B);
-
     }
 
     B.CreateStore(B.CreateLoad(Rhs), Lhs);
@@ -109,7 +108,21 @@ void PointerUseTransform::ApplyTo(PointerCompare *PC){
 
 Value *PointerUseTransform::RecreateValueChain(std::vector<Value *> Chain, IRBuilder<> &B){
   Value *Rhs = Chain.back();
-  Value *PrevFatPointer = NULL;
+  Value *PrevBase = NULL;
+  Value *PrevBound = NULL;
+
+  // If the chain starts with a malloc instruction, calculate the base and bounds
+  // for the future fat pointer
+  if(auto C = dyn_cast<CallInst>(Chain.back())){
+    if(C->getCalledFunction()->getName() == "malloc"){
+      PrevBase = C;
+      Type *IntegerType = IntegerType::getInt64Ty(PrevBase->getContext());
+      PrevBound = B.CreateIntToPtr(B.CreateAdd(
+            C->getArgOperand(0), 
+            B.CreatePtrToInt(PrevBase, IntegerType)),
+          PrevBase->getType());
+    }
+  }
 
   for(int i=Chain.size() - 2; i>= 0; i--){
     Value *CurrentLink = Chain[i];
@@ -120,17 +133,17 @@ Value *PointerUseTransform::RecreateValueChain(std::vector<Value *> Chain, IRBui
             Rhs->getType()->getPointerElementType())){
         // Remember the most recent fat pointer so we can carry over bounds on
         // GEP or Cast
-        PrevFatPointer = Rhs;
+        PrevBase = LoadFatPointerBase(Rhs, B);
+        PrevBound  = LoadFatPointerBound(Rhs, B);
 
         FatPointers::CreateBoundsCheck(B, LoadFatPointerValue(Rhs, B),
-            LoadFatPointerBase(Rhs, B), LoadFatPointerBound(Rhs, B), Print, M);
+            PrevBase, PrevBound, Print, M);
         Rhs = LoadFatPointerValue(Rhs, B);
       } else {
         Rhs = B.CreateLoad(Rhs);
       }
     } else if(GetLinkType(CurrentLink) == GEP){
       auto Gep = cast<GetElementPtrInst>(CurrentLink);
-      // TODO: Naturally, bounds check
       std::vector<Value *> Indices;
       for(auto I=Gep->idx_begin(), E=Gep->idx_end(); I != E; ++I)
         Indices.push_back(*I);
@@ -140,15 +153,12 @@ Value *PointerUseTransform::RecreateValueChain(std::vector<Value *> Chain, IRBui
       Value *FP = FatPointers::CreateFatPointer(NewGep->getType(), B);
       Value *Null = FatPointers::GetFieldNull(FP);
       StoreInFatPointerValue(FP, NewGep, B);
-      if(PrevFatPointer){
-        StoreInFatPointerBase(FP, LoadFatPointerBase(PrevFatPointer, B), B);
-        StoreInFatPointerBound(FP, LoadFatPointerBound(PrevFatPointer, B), B);
+      if(PrevBase){
+        StoreInFatPointerBase(FP, PrevBase, B);
+        StoreInFatPointerBound(FP, PrevBound, B);
       } else {
-        errs() << "GEP without previous fat pointer\n";
-        StoreInFatPointerBase(FP, Null, B);
-        StoreInFatPointerBound(FP, Null, B);
+        assert(false && "GEP without previous fat pointer");
       }
-      //Rhs = B.CreateLoad(FP);
       Rhs = FP;
     } else if(GetLinkType(CurrentLink) == CAST){
       CastInst *Cast = cast<CastInst>(CurrentLink);
@@ -170,8 +180,14 @@ Value *PointerUseTransform::RecreateValueChain(std::vector<Value *> Chain, IRBui
         Value *FP = FatPointers::CreateFatPointer(Cast->getDestTy(), B);
         Value *Null = FatPointers::GetFieldNull(FP);
         StoreInFatPointerValue(FP, Rhs, B);
-        StoreInFatPointerBase(FP, Null, B);
-        StoreInFatPointerBound(FP, Null, B);
+        if(PrevBase){
+          PrevBase = B.CreateCast(Cast->getOpcode(), PrevBase, DestTy);
+          PrevBound = B.CreateCast(Cast->getOpcode(), PrevBound, DestTy);
+          StoreInFatPointerBase(FP, PrevBase, B);
+          StoreInFatPointerBound(FP, PrevBound, B);
+        } else {
+          errs() << "Cast without previous fat pointer.\n";
+        }
 
         Rhs = B.CreateLoad(FP);
       } else {

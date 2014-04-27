@@ -113,12 +113,17 @@ void SetFatPointerToAddress(Value *FatPointer, Value *Address, IRBuilder<> B){
 
 void SetFatPointerBaseAndBound(Value *FP, Value *Base, Value *Size, IRBuilder<> B){
   StoreInFatPointerBase(FP, Base, B);
+  Value *Bound = CalculateBound(Base, Size, B);
+  StoreInFatPointerBound(FP, Bound, B);
+}
+
+Value *CalculateBound(Value *Base, Value *Size, IRBuilder<> B){
   Type *IntegerType = IntegerType::getInt64Ty(Base->getContext());
   Value *Bound = B.CreateIntToPtr(B.CreateAdd(
         B.CreatePtrToInt(Size, IntegerType), 
         B.CreatePtrToInt(Base, IntegerType)),
       Base->getType());
-  StoreInFatPointerBound(FP, Bound, B);
+  return Bound;
 }
 
 unsigned int GetNumElementsInArray(AllocaInst * ArrayAlloc){
