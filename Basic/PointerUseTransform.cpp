@@ -56,9 +56,11 @@ void PointerUseTransform::ApplyTo(PointerAssignment *PA){
         Rhs = LoadFatPointerValue(Rhs, B);
       else
         Lhs = LoadFatPointerValue(Lhs, B);
+
     }
 
     B.CreateStore(B.CreateLoad(Rhs), Lhs);
+
     if(PA->Load)
       PA->Load->eraseFromParent();
   }
@@ -105,68 +107,67 @@ void PointerUseTransform::ApplyTo(PointerCompare *PC){
 Value *PointerUseTransform::RecreateValueChain(std::vector<Value *> Chain, IRBuilder<> &B){
   Value *Rhs = Chain.back();
 
-  for(auto L: Chain)
-    for(int i=Chain.size() - 2; i>= 0; i--){
-      Value *CurrentLink = Chain[i];
-      if(GetLinkType(CurrentLink) == LOAD){
-        // Rhs may not be of a fat pointer type if it is a different type
-        // that will later be cast to a fat pointer type
-        if(FatPointers::IsFatPointerType(
-              Rhs->getType()->getPointerElementType())){
-          Rhs = LoadFatPointerValue(Rhs, B);
+  for(int i=Chain.size() - 2; i>= 0; i--){
+    Value *CurrentLink = Chain[i];
+    if(GetLinkType(CurrentLink) == LOAD){
+      // Rhs may not be of a fat pointer type if it is a different type
+      // that will later be cast to a fat pointer type
+      if(FatPointers::IsFatPointerType(
+            Rhs->getType()->getPointerElementType())){
+        Rhs = LoadFatPointerValue(Rhs, B);
+      } else {
+        Rhs = B.CreateLoad(Rhs);
+      }
+    } else if(GetLinkType(CurrentLink) == GEP){
+      auto Gep = cast<GetElementPtrInst>(CurrentLink);
+      // TODO: Naturally, bounds check
+      std::vector<Value *> Indices;
+      for(auto I=Gep->idx_begin(), E=Gep->idx_end(); I != E; ++I)
+        Indices.push_back(*I);
+
+      Value *NewGep = B.CreateGEP(Rhs, Indices);
+
+      // TODO: Carry bounds over here
+      Value *FP = FatPointers::CreateFatPointer(NewGep->getType(), B);
+      Value *Null = FatPointers::GetFieldNull(FP);
+      StoreInFatPointerValue(FP, NewGep, B);
+      StoreInFatPointerBase(FP, Null, B);
+      StoreInFatPointerBound(FP, Null, B);
+      //Rhs = B.CreateLoad(FP);
+      Rhs = FP;
+      errs() << *Rhs << "\n";
+    } else if(GetLinkType(CurrentLink) == CAST){
+
+      CastInst *Cast = cast<CastInst>(CurrentLink);
+      // If the destination type was a pointer, we need to create
+      // a fat pointer
+      if(Cast->getDestTy()->isPointerTy()){
+        Type *DestTy;
+        if(Cast->getDestTy()->getPointerElementType()->isPointerTy()){
+          // If it is nested (eg int **x) cast it to a fat pointer
+          DestTy = FatPointers::GetFatPointerType(
+              Cast->getDestTy()->getPointerElementType())->getPointerTo();
         } else {
-          Rhs = B.CreateLoad(Rhs);
+          // Otherwise leave it as it is for the moment
+          DestTy = Cast->getDestTy();
         }
-      } else if(GetLinkType(CurrentLink) == GEP){
-        auto Gep = cast<GetElementPtrInst>(CurrentLink);
-        // TODO: Naturally, bounds check
-        std::vector<Value *> Indices;
-        for(auto I=Gep->idx_begin(), E=Gep->idx_end(); I != E; ++I)
-          Indices.push_back(*I);
+        Rhs = B.CreateCast(Cast->getOpcode(), Rhs, DestTy);
 
-        Value *NewGep = B.CreateGEP(Rhs, Indices);
-
-        // TODO: Carry bounds over here
-        Value *FP = FatPointers::CreateFatPointer(NewGep->getType(), B);
+        // Create a fat pointer object from the cast
+        Value *FP = FatPointers::CreateFatPointer(Cast->getDestTy(), B);
         Value *Null = FatPointers::GetFieldNull(FP);
-        StoreInFatPointerValue(FP, NewGep, B);
+        StoreInFatPointerValue(FP, Rhs, B);
         StoreInFatPointerBase(FP, Null, B);
         StoreInFatPointerBound(FP, Null, B);
-        //Rhs = B.CreateLoad(FP);
-        Rhs = FP;
-        errs() << *Rhs << "\n";
-      } else if(GetLinkType(CurrentLink) == CAST){
 
-        CastInst *Cast = cast<CastInst>(CurrentLink);
-        // If the destination type was a pointer, we need to create
-        // a fat pointer
-        if(Cast->getDestTy()->isPointerTy()){
-          Type *DestTy;
-          if(Cast->getDestTy()->getPointerElementType()->isPointerTy()){
-            // If it is nested (eg int **x) cast it to a fat pointer
-            DestTy = FatPointers::GetFatPointerType(
-                Cast->getDestTy()->getPointerElementType())->getPointerTo();
-          } else {
-            // Otherwise leave it as it is for the moment
-            DestTy = Cast->getDestTy();
-          }
-          Rhs = B.CreateCast(Cast->getOpcode(), Rhs, DestTy);
-
-          // Create a fat pointer object from the cast
-          Value *FP = FatPointers::CreateFatPointer(Cast->getDestTy(), B);
-          Value *Null = FatPointers::GetFieldNull(FP);
-          StoreInFatPointerValue(FP, Rhs, B);
-          StoreInFatPointerBase(FP, Null, B);
-          StoreInFatPointerBound(FP, Null, B);
-
-          Rhs = B.CreateLoad(FP);
-        } else {
-          Rhs = B.CreateCast(Cast->getOpcode(), Rhs, Cast->getDestTy());
-        }
+        Rhs = B.CreateLoad(FP);
+      } else {
+        Rhs = B.CreateCast(Cast->getOpcode(), Rhs, Cast->getDestTy());
       }
-      // Delete the old link
-      cast<Instruction>(Chain[i])->eraseFromParent();
     }
+    // Delete the old link
+    cast<Instruction>(Chain[i])->eraseFromParent();
+  }
   return Rhs;
 }
 
