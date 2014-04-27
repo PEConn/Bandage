@@ -17,55 +17,89 @@ void PointerUseTransform::Apply(){
 void PointerUseTransform::ApplyTo(PointerAssignment *PA){
   // Refollow the chains to contain the updated allocas
   PA->FollowChains(); 
+  PA->Print();
 
   IRBuilder<> B(PA->Store);
+
+  // 'RecreateValueChain' makes GEPs return a fat pointer, so if the last
+  // instruction in a chain is a fat pointer, add a load to get a value from it
+  if(isa<GetElementPtrInst>(PA->PointerChain.front()))
+    PA->PointerChain.insert(PA->PointerChain.begin(),
+        B.CreateLoad(PA->PointerChain.front()));
+
   Value *Lhs = RecreateValueChain(PA->PointerChain, B);
 
-  if(PA->Load == NULL 
-      && !isa<GetElementPtrInst>(PA->ValueChain.front())){
-    if(isa<Constant>(PA->ValueChain.back())){
-      // We're assigning to a constant
-      if(auto C = dyn_cast<GEPOperator>(PA->ValueChain.back())){
-        // Set equal to a constant string
-        Value *FP = FatPointers::CreateFatPointer(C->getType(), B);
-
-        // Set the bounds from the constant string
-        // This could be replaced with a constant calculation
-        Type *CharArray = C->getPointerOperand()->getType()->getPointerElementType();
-        Value *Size = GetSizeValue(CharArray, B);
-        StoreInFatPointerValue(FP, C, B);
-        SetFatPointerBaseAndBound(FP, C, Size, B);
-
-        B.CreateStore(B.CreateLoad(FP), Lhs);
-      } else {
-        Value *V = RecreateValueChain(PA->ValueChain, B);
-        B.CreateStore(V, Lhs);
-      }
-    } else {
-      Value *V = RecreateValueChain(PA->ValueChain, B);
-      if(isa<AllocaInst>(PA->ValueChain.front()))
-        // We're assigning to the address of
-        SetFatPointerToAddress(Lhs, V, B);
-      else{
-        B.CreateStore(V, Lhs);
-      }
-
-    }
-  }else{
-    // We're assigning to the value of Rhs
-    Value *Rhs = RecreateValueChain(PA->ValueChain, B);
-    if(Rhs->getType() != Lhs->getType()){
-      if(FatPointers::IsFatPointerType(Rhs->getType()->getPointerElementType()))
-        Rhs = LoadFatPointerValue(Rhs, B);
-      else
-        Lhs = LoadFatPointerValue(Lhs, B);
-    }
-
-    B.CreateStore(B.CreateLoad(Rhs), Lhs);
-
-    if(PA->Load)
-      PA->Load->eraseFromParent();
+  if(PA->Load == NULL && isa<AllocaInst>(PA->ValueChain.front())){
+    // Assigning to the address of the Rhs
+    SetFatPointerToAddress(Lhs, PA->ValueChain.front(), B);
+    PA->Store->eraseFromParent();
+    return;
   }
+
+
+  if(isa<Constant>(PA->ValueChain.back())
+      && isa<GEPOperator>(PA->ValueChain.back())){
+    auto C = dyn_cast<GEPOperator>(PA->ValueChain.back());
+    // Set equal to a constant string
+    Value *FP = FatPointers::CreateFatPointer(C->getType(), B);
+
+    // Set the bounds from the constant string
+    // This could be replaced with a constant calculation
+    Type *CharArray = C->getPointerOperand()->getType()->getPointerElementType();
+    Value *Size = GetSizeValue(CharArray, B);
+    StoreInFatPointerValue(FP, C, B);
+    SetFatPointerBaseAndBound(FP, C, Size, B);
+
+    B.CreateStore(B.CreateLoad(FP), Lhs);
+    PA->Store->eraseFromParent();
+    return;
+  }  
+  
+  if(PA->Load != NULL && isa<GetElementPtrInst>(PA->ValueChain.front()))
+    PA->ValueChain.insert(PA->ValueChain.begin(), 
+        B.CreateLoad(PA->ValueChain.front()));
+  
+  Value *Rhs = RecreateValueChain(PA->ValueChain, B);
+  //errs()<< __LINE__ << *Rhs << "\n";
+  //errs() << __LINE__ << *Lhs << "\n";
+
+  // This is required to get typing correct when using array notation for
+  // dereferencing pointers
+  /*if(isa<GetElementPtrInst>(PA->PointerChain.front()))
+    Lhs = LoadFatPointerValue(Lhs, B);
+  if(PA->Load != NULL && isa<GetElementPtrInst>(PA->ValueChain.front())){
+    Rhs = LoadFatPointerValue(Rhs, B);
+  }*/
+
+  if(isa<AllocaInst>(PA->ValueChain.back())){
+    // We're assigning to the value of Rhs
+    Rhs = B.CreateLoad(Rhs);
+  }
+
+  errs() << "---\n";
+  
+  /*
+  errs() << *Lhs << "\n";
+  errs() << *Rhs << "\n";
+  if(isa<GetElementPtrInst>(Lhs))
+    Lhs = LoadFatPointerValue(Lhs, B);
+    */
+  //if(isa<
+
+  /*if(Rhs->getType()->getPointerTo() != Lhs->getType()){
+    if(Rhs->getType()->isPointerTy()
+        && FatPointers::IsFatPointerType(Rhs->getType()->getPointerElementType()))
+      Rhs = LoadFatPointerValue(Rhs, B);
+
+    if(Lhs->getType()->isPointerTy()
+        && FatPointers::IsFatPointerType(Lhs->getType()->getPointerElementType()))
+      Lhs = LoadFatPointerValue(Lhs, B);
+  }*/
+
+  B.CreateStore(Rhs, Lhs);
+
+  if(PA->Load)
+    PA->Load->eraseFromParent();
   PA->Store->eraseFromParent();
 }
 void PointerUseTransform::ApplyTo(PointerReturn *PR){
@@ -129,6 +163,7 @@ Value *PointerUseTransform::RecreateValueChain(std::vector<Value *> Chain, IRBui
     if(GetLinkType(CurrentLink) == LOAD){
       // Rhs may not be of a fat pointer type if it is a different type
       // that will later be cast to a fat pointer type
+      // TODO: Redo bounds checking - needs to be on normal loads
       if(FatPointers::IsFatPointerType(
             Rhs->getType()->getPointerElementType())){
         // Remember the most recent fat pointer so we can carry over bounds on
@@ -160,6 +195,7 @@ Value *PointerUseTransform::RecreateValueChain(std::vector<Value *> Chain, IRBui
         assert(false && "GEP without previous fat pointer");
       }
       Rhs = FP;
+      //Rhs = NewGep;
     } else if(GetLinkType(CurrentLink) == CAST){
       CastInst *Cast = cast<CastInst>(CurrentLink);
       // If the destination type was a pointer, we need to create
