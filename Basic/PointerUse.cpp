@@ -175,3 +175,26 @@ void PointerReturn::DispatchTransform(PointerUseTransform *T){
 void PointerParameter::DispatchTransform(PointerUseTransform *T){
   T->ApplyTo(this);
 }
+
+void PU::Print(){
+  errs() << "Use chain for " << *Orig << "\n";
+  for(auto L: Chain)
+    errs() << "| " << *L << "\n";
+  errs() << "\\--------------\n";
+}
+bool PU::IsValid(){
+  return true;
+}
+PU::PU(Value *V, Value *O){
+  this->Orig = O;
+  
+  Chain.push_back(V);
+  while(V->use_begin() != V->use_end()){
+    V = *V->use_begin();
+    Chain.push_back(V);
+  }
+}
+
+void PU::DispatchTransform(PointerUseTransform *T){
+  T->ApplyTo(this);
+}

@@ -12,13 +12,15 @@ public:
   PointerUseTransform(PointerUseCollection *PUC, Module &M, std::map<Function *, Function *> RawToFPMap);
 
   void Apply();
-  void ApplyTo(PointerAssignment *PA);
+  void ApplyTo(PointerAssignment *PA){}
   void ApplyTo(PointerReturn *PR);
   void ApplyTo(PointerParameter *PP);
-  void ApplyTo(PointerCompare *PC);
+  void ApplyTo(PointerCompare *PC){}
+  void ApplyTo(PU *P);
 
 private:
-  Value *RecreateValueChain(std::vector<Value *> Chain, IRBuilder<> &B);
+  //Value *RecreateValueChain(std::vector<Value *> Chain, IRBuilder<> &B);
+  void RecreateValueChain(std::vector<Value *> Chain);
   PointerUseCollection *PUC;
   Module *M;
   Function *Print;

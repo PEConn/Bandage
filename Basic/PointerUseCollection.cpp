@@ -11,6 +11,19 @@ void PointerUseCollection::CollectInstructions(std::set<Function *> Functions){
   for(auto F: Functions){
     for(auto II = inst_begin(F), EI = inst_end(F); II != EI; ++II){
       Instruction *I = &*II;
+      if(auto A = dyn_cast<AllocaInst>(I)){
+        for(auto i = A->use_begin(), e = A->use_end(); i != e; ++i){
+          PotentialUses.push_back(new PU(*i, A));
+        }
+      }
+
+      if(auto C = dyn_cast<CallInst>(I)){
+        PotentialUses.push_back(new PointerParameter(C));
+        for(auto i = C->use_begin(), e = C->use_end(); i != e; ++i){
+          PotentialUses.push_back(new PU(*i, C));
+        }
+      }
+      /*
       if(auto S = dyn_cast<StoreInst>(I)){
         PotentialUses.push_back(new PointerAssignment(S));
       } else if(auto R = dyn_cast<ReturnInst>(I)){
@@ -19,7 +32,7 @@ void PointerUseCollection::CollectInstructions(std::set<Function *> Functions){
         PotentialUses.push_back(new PointerParameter(C));
       } else if(auto C = dyn_cast<CmpInst>(I)){
         PotentialUses.push_back(new PointerCompare(C));
-      }
+      }*/
     }
   }
 

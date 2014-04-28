@@ -214,3 +214,10 @@ Value *ConvertFatPointerToRawPointer(Value *FatPointer, IRBuilder<> B){
 
   return Ret;
 }
+
+bool IsStoreValueOperand(StoreInst *S, Value *V){
+  return S->getValueOperand() == V;
+}
+bool IsStorePointerOperand(StoreInst *S, Value *V){
+  return S->getPointerOperand() == V;
+}

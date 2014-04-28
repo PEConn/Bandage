@@ -60,4 +60,7 @@ void SetFatPointerToAddress(Value *FatPointer, Value *Address, IRBuilder<> B);
 void SetFatPointerBaseAndBound(Value *FP, Value *Base, Value *Size, IRBuilder<> B);
 Value *CalculateBound(Value *Base, Value *Size, IRBuilder<> B);
 Value *ConvertFatPointerToRawPointer(Value *FatPointer, IRBuilder<> B);
+
+bool IsStoreValueOperand(StoreInst *S, Value *V);
+bool IsStorePointerOperand(StoreInst *S, Value *V);
 #endif

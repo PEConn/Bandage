@@ -16,14 +16,16 @@ b3="${1}-ban-o3"
 ${clang} -S -emit-llvm ${1}.c -o ${1}.bc
 
 # Create the reference versions
-${llc} ${1}.bc -o ${r0}.s
+${opt} -S ${1}.bc > ${r0}.bc
+${llc} ${r0}.bc -o ${r0}.s
 ${clang} ${r0}.s -o ${r0} 
 
-${llc} ${1}.bc -o ${r3}.s
+${opt} -S -O3 ${1}.bc > ${r3}.bc
+${llc} ${r3}.bc -o ${r3}.s
 ${clang} ${r3}.s -o ${r3} 
 
 # Create the bandage versions
-${opt} -S -bandage ${1}.bc > ${b0}.bc
+${opt} -S -bandage ${1}.bc > ${b0}.bc 2> /dev/null
 ${llc} ${b0}.bc -o ${b0}.s
 ${clang} ${b0}.s -o ${b0} 
 
@@ -38,17 +40,21 @@ echo `date` >> ${i}.log
 for benchmark in $r0 $r3 $b0 $b3
 do
   echo -n "Timing ${benchmark}"
-  for i in {1..10}
+  for i in {1..5}
   do
-    ${time} -a -o ${benchmark}.txt ./${benchmark} > /dev/null
+    ./${benchmark} > ${benchmark}.txt
     echo -n " ${i}"
   done
   echo
 done
 
-awk '{total += $3} END {print "Raw -O0: " total/NR;}' ${r0}.txt >> ${1}.log
-awk '{total += $3} END {print "Raw -O3: " total/NR;}' ${r3}.txt >> ${1}.log
-awk '{total += $3} END {print "Ban -O0: " total/NR;}' ${b0}.txt >> ${1}.log
-awk '{total += $3} END {print "Ban -O3: " total/NR;}' ${b3}.txt >> ${1}.log
+# Get rid of an error output
+grep -e '[0-9]\.[0-9]' ${b0}.txt > Temp
+cat Temp > ${b0}.txt
+
+awk '{total += $1} END {print "Raw -O0: " total/NR;}' ${r0}.txt >> ${1}.log
+awk '{total += $1} END {print "Raw -O3: " total/NR;}' ${r3}.txt >> ${1}.log
+awk '{total += $1} END {print "Ban -O0: " total/NR;}' ${b0}.txt >> ${1}.log
+awk '{total += $1} END {print "Ban -O3: " total/NR;}' ${b3}.txt >> ${1}.log
 
 tail -n 4 ${1}.log

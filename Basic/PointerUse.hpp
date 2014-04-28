@@ -15,6 +15,17 @@ public:
   virtual void DispatchTransform(PointerUseTransform *) = 0;
 };
 
+class PU : public PointerUse{
+public:
+  virtual void Print();
+  virtual bool IsValid();
+  virtual void DispatchTransform(PointerUseTransform *);
+  PU(Value *FirstElementOfUseChain, Value *Originator);
+  ~PU(){}
+  std::vector<Value *> Chain;
+  Value *Orig;
+};
+
 class PointerAssignment : public PointerUse{
 public:
   PointerAssignment(StoreInst *S);
