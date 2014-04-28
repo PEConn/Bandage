@@ -9,8 +9,10 @@ int main(){
 	for(int i=0; i<1000; i++){
 		for(int j=0; j<1000; j++){
       y = malloc(sizeof(int));
+      int z = *y;
+      x += z;
       free(y);
 		}
 	}
-	return 0;
+	return x;
 }

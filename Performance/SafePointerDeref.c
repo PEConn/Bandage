@@ -8,7 +8,7 @@ int main(){
   y = malloc(sizeof(int));
 	
 	for(int i=0; i<1000; i++){
-		for(int j=0; j<100000; j++){
+		for(int j=0; j<10000; j++){
       x = *y;
 		}
 	}

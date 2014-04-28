@@ -14,7 +14,8 @@ int main(){
   *y = z;   // CHECK: (y, 1) set to (z, 0)
   z = **x;  // CHECK: (z, 0) set to (x, 2)
 
-  y = (int **)123;
+  int p = 123;
+  y = (int **)p;
 
   int *a;
   int *b;

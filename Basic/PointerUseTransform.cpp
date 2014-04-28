@@ -19,6 +19,7 @@ void PointerUseTransform::Apply(){
 void PointerUseTransform::ApplyTo(PointerAssignment *PA){
   // Refollow the chains to contain the updated allocas
   PA->FollowChains(); 
+  PA->Print();
 
   IRBuilder<> B(PA->Store);
 
@@ -155,6 +156,7 @@ Value *PointerUseTransform::RecreateValueChain(std::vector<Value *> Chain, IRBui
 
   // If the chain starts with a malloc instruction, calculate the base and bounds
   // for the future fat pointer
+  errs() << *Chain.back() << "\n";
   if(auto C = dyn_cast<CallInst>(Chain.back())){
     if(C->getCalledFunction()->getName() == "malloc"){
       PrevBase = C;
@@ -164,7 +166,12 @@ Value *PointerUseTransform::RecreateValueChain(std::vector<Value *> Chain, IRBui
             B.CreatePtrToInt(PrevBase, IntegerType)),
           PrevBase->getType());
     }
-  }
+  }/* else if(Chain.back()->getType()->getPointerElementType()->isArrayTy()){
+    Value *Arr = Chain.back();
+    PrevBase = B.CreateGEP(Arr, GetIndices(0, Arr->getContext()));
+    PrevBound = B.CreateGEP(Arr, GetIndices(Arr->getType()->getArrayNumElements(),
+          Arr->getContext()));
+  }*/
 
   for(int i=Chain.size() - 2; i>= 0; i--){
     Value *CurrentLink = Chain[i];

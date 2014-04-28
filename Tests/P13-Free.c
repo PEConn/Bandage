@@ -16,7 +16,7 @@ int main(){
 	// CHECK: 6
 
   printf("%d\n", *x);
-  // CHECK: Invalid
+  // CHECK: Unset
 
 	return 0;
 }
