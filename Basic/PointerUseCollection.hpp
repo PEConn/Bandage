@@ -10,10 +10,10 @@ using namespace llvm;
 
 class PointerUseCollection{
 public:
-  PointerUseCollection(FunctionDuplicater *FD);
+  PointerUseCollection(FunctionDuplicater *FD, Module &M);
   std::set<PointerUse *> PointerUses;
 private:
-  void CollectInstructions(std::set<Function *> Functions);
+  void CollectInstructions(std::set<Function *> Functions, Module &M);
 };
 
 #endif

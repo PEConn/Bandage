@@ -42,7 +42,7 @@ struct Bandage : public ModulePass{
     errs() << "Duplicating Functions\n";
     auto *FD = new FunctionDuplicater(M, TD);
     errs() << "Collecting Pointer Uses\n";
-    auto *PUC = new PointerUseCollection(FD);
+    auto *PUC = new PointerUseCollection(FD, M);
     errs() << "Transforming Pointer Allocations\n";
     auto *PAT = new PointerAllocaTransform(FD->GetFPFunctions());
     for(auto PU: PUC->PointerUses)

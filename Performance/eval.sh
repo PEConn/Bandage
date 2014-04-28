@@ -8,7 +8,8 @@ clang="clang"
 
 time="/usr/bin/time"
 
-${llc} ${1}.bc -o ${1}.s
+${opt} -always-inline ${1}.bc > ${1}_inlined.bc
+${llc} ${1}_inlined.bc -o ${1}.s
 ${clang} ${1}.s -o ${1} 
 
 rm ${1}.s > /dev/null

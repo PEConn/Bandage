@@ -188,6 +188,7 @@ bool PU::IsValid(){
 PU::PU(Value *V, Value *O){
   this->Orig = O;
   
+  Chain.push_back(O);
   Chain.push_back(V);
   while(V->use_begin() != V->use_end()){
     V = *V->use_begin();

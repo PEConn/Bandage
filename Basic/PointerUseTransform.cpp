@@ -197,10 +197,12 @@ void PointerUseTransform::RecreateValueChain(std::vector<Value *> Chain){
 
   // If the chain starts with a malloc instruction, calculate the base and bounds
   // for the future fat pointer
-  /*
-  errs() << *Chain.back() << "\n";
-  if(auto C = dyn_cast<CallInst>(Chain.back())){
+  if(auto C = dyn_cast<CallInst>(Chain.front())){
     if(C->getCalledFunction()->getName() == "malloc"){
+      BasicBlock::iterator iter = C;
+      iter++;
+      IRBuilder<> B(iter);
+
       PrevBase = C;
       Type *IntegerType = IntegerType::getInt64Ty(PrevBase->getContext());
       PrevBound = B.CreateIntToPtr(B.CreateAdd(
@@ -209,22 +211,36 @@ void PointerUseTransform::RecreateValueChain(std::vector<Value *> Chain){
           PrevBase->getType());
     }
   }
-  */
 
-  // Get rid of last
-  //errs() << "---\n";
-  //for(int i=Chain.size() - 1; i>= 0; i--){
+  // Set equal to a constant string
+  if(auto S = dyn_cast<StoreInst>(Chain.back())){
+    if(auto G = dyn_cast<GEPOperator>(S->getValueOperand())){
+      if(auto C = dyn_cast<Constant>(G->getPointerOperand())){
+        IRBuilder<> B(S);
+
+        Value *FP = FatPointers::CreateFatPointer(G->getType(), B);
+
+        // This could be replaced with a constant calculation
+        Type *CharArray = G->getPointerOperand()->getType()->getPointerElementType();
+        Value *Size = GetSizeValue(CharArray, B);
+        StoreInFatPointerValue(FP, G, B);
+        SetFatPointerBaseAndBound(FP, G, Size, B);
+
+        S->setOperand(0, B.CreateLoad(FP));
+      }
+    }
+  }
+
   bool ExpectedFatPointer = false;
   if(auto S = dyn_cast<StoreInst>(Chain.back())){
     if(IsStoreValueOperand(S, Chain[Chain.size() - 2])){
       ExpectedFatPointer = true;
     }
   }
-      
 
   for(int i=0; i<Chain.size(); i++){
     Value *CurrentLink = Chain[i];
-    //errs() << *CurrentLink << "\n";
+
     if(auto L = dyn_cast<LoadInst>(CurrentLink)){
       IRBuilder<> B(L);
       Value *Op = L->getPointerOperand();
@@ -240,6 +256,7 @@ void PointerUseTransform::RecreateValueChain(std::vector<Value *> Chain){
           PrevBase = LoadFatPointerBase(Op, B);
           PrevBound  = LoadFatPointerBound(Op, B);
 
+          // If we have a GEP next, delay the bounds checking until after it
           FatPointers::CreateBoundsCheck(B, LoadFatPointerValue(Op, B),
               PrevBase, PrevBound, Print, M);
 
