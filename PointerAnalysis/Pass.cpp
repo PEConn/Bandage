@@ -176,7 +176,6 @@ void PointerAnalysis::CollectPointers(Module &M){
 
 void PointerAnalysis::SolveConstraints(){
   // Create a map, from pointer uses to designation
-  std::map<Pointer, CCuredPointerType> Qs;
   for(auto PU: PointerUses) Qs[PU] = UNSET;
 
   for(auto C: IDCons){

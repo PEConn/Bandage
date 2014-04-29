@@ -33,6 +33,7 @@ void PointerAllocaTransform::TransformAllocas(){
     std::string Name = "FP." + PointerAlloc->getName().str();
     // Construct the type for the fat pointer
     Value *FatPointer = FatPointers::CreateFatPointer(PointerTy, B, Name);
+    RawToFPMap[PointerAlloc] = cast<AllocaInst>(FatPointer);
     PointerAlloc->replaceAllUsesWith(FatPointer);
 
     // Initialise the value, base and bound to null

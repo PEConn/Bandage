@@ -28,6 +28,7 @@ struct PointerAnalysis : public ModulePass{
   void CollectPointers(Module &M);
   void SolveConstraints();
   virtual void getAnalysisUsage(AnalysisUsage &AU) const {}
+  std::map<Pointer, CCuredPointerType> Qs;
 private:
   std::set<Pointer> PointerUses;
   std::map<Function *, Pointer> FunctionReturns;

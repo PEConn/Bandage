@@ -19,6 +19,7 @@ public:
 
   // TODO: Make this private with an accessor
   std::map<Function *, Function *> RawToFPMap;
+  ValueToValueMapTy VMap;
 private:
   void DuplicateFunctions(Module &M, TypeDuplicater *TD);
   void RenameMain();

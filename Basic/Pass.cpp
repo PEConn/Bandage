@@ -36,7 +36,9 @@ struct Bandage : public ModulePass{
   Bandage() : ModulePass(ID) {}
 
   virtual bool runOnModule(Module &M) {
-    errs() << "\n\n\n";
+    errs() << "-------------------------------" << "\n";
+    errs() << "Fat Pointer Transformation Pass" << "\n";
+    errs() << "-------------------------------" << "\n";
     errs() << "Duplicating Types\n";
     auto *TD = new TypeDuplicater(M, &getAnalysis<FindUsedTypes>());
     errs() << "Duplicating Functions\n";
@@ -46,10 +48,11 @@ struct Bandage : public ModulePass{
     errs() << "Transforming Pointer Allocations\n";
     auto *PAT = new PointerAllocaTransform(FD->GetFPFunctions());
     errs() << "Transform Pointer Uses\n";
-    auto *T = new PointerUseTransform(PUC, M, FD->RawToFPMap);
+    auto *T = new PointerUseTransform(PUC, M, FD->RawToFPMap, PAT->RawToFPMap);
+    auto PA = &getAnalysis<PointerAnalysis>();
+    T->AddPointerAnalysis(PA->Qs, FD->VMap);
     T->Apply();
-
-    errs() << "Done\n";
+    errs() << "-------------------------------" << "\n";
 
 
 
@@ -64,7 +67,6 @@ struct Bandage : public ModulePass{
     errs() << "\n\n\n";
     */
 
-    auto PA = &getAnalysis<PointerAnalysis>();
 
     return true;
   }

@@ -6,10 +6,11 @@
 #include "llvm/IR/Module.h"
 
 #include "PointerUseCollection.hpp"
+#include "../PointerAnalysis/Pointer.hpp"
 
 class PointerUseTransform{
 public:
-  PointerUseTransform(PointerUseCollection *PUC, Module &M, std::map<Function *, Function *> RawToFPMap);
+  PointerUseTransform(PointerUseCollection *PUC, Module &M, std::map<Function *, Function *> RawToFPMap, std::map<AllocaInst *, AllocaInst *> RawToFPAllocaMap);
 
   void Apply();
   void ApplyTo(PointerAssignment *PA){}
@@ -17,14 +18,16 @@ public:
   void ApplyTo(PointerParameter *PP);
   void ApplyTo(PointerCompare *PC){}
   void ApplyTo(PU *P);
-
+  void AddPointerAnalysis(std::map<Pointer, CCuredPointerType> Qs, ValueToValueMapTy &VMap);
 private:
-  //Value *RecreateValueChain(std::vector<Value *> Chain, IRBuilder<> &B);
   void RecreateValueChain(std::vector<Value *> Chain);
   PointerUseCollection *PUC;
   Module *M;
   Function *Print;
   std::map<Function *, Function *> RawToFPMap;
+  std::map<Pointer, CCuredPointerType> Qualifiers;
+  std::map<AllocaInst *, AllocaInst *> RawToFPAllocaMap;
+  std::map<Value *, Value *> FPToRawVariableMap;
 };
 
 

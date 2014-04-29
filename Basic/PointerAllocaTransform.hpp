@@ -11,6 +11,7 @@ using namespace llvm;
 class PointerAllocaTransform{
 public:
   PointerAllocaTransform(std::set<Function *> Functions);
+  std::map<AllocaInst *, AllocaInst *> RawToFPMap;
 private:
   void CollectAllocas(std::set<Function *> Functions);
   void TransformAllocas();

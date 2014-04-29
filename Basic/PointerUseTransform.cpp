@@ -4,157 +4,30 @@
 #include "llvm/Support/raw_ostream.h"
 #include "Helpers.hpp"
 
-PointerUseTransform::PointerUseTransform(PointerUseCollection *PUC, Module &M, std::map<Function *, Function *> RawToFPMap){
+PointerUseTransform::PointerUseTransform(PointerUseCollection *PUC, Module &M, std::map<Function *, Function *> RawToFPMap, std::map<AllocaInst *, AllocaInst *> RawToFPAllocaMap){
 
   this->PUC = PUC;
   this->M = &M;
   this->Print = M.getFunction("printf");
   this->RawToFPMap = RawToFPMap;
+  this->RawToFPAllocaMap = RawToFPAllocaMap;
+}
+
+void PointerUseTransform::AddPointerAnalysis(std::map<Pointer, CCuredPointerType> Qs, ValueToValueMapTy &VMap){
+  for(auto Q: Qs){
+    Value *OriginalAlloca = Q.first.id;
+    Value *DuplicatedAlloca = VMap[OriginalAlloca];
+    Pointer NewKey = Pointer(DuplicatedAlloca, Q.first.level);
+    this->Qualifiers[NewKey] = Q.second;
+  }
 }
 
 void PointerUseTransform::Apply(){
-  for(auto U: PUC->PointerUses){
-    U->Print();
+  for(auto U: PUC->PointerUses)
     U->DispatchTransform(this);
-  }
-  for(auto U: PUC->PointerParams){
+  for(auto U: PUC->PointerParams)
     U->DispatchTransform(this);
-  }
 }
-/*
-void PointerUseTransform::ApplyTo(PointerAssignment *PA){
-  // Refollow the chains to contain the updated allocas
-  PA->FollowChains(); 
-  PA->Print();
-
-  IRBuilder<> B(PA->Store);
-
-  // 'RecreateValueChain' makes GEPs return a fat pointer, so if the last
-  // instruction in a chain is a fat pointer, add a load to get a value from it
-  if(isa<GetElementPtrInst>(PA->PointerChain.front()))
-    PA->PointerChain.insert(PA->PointerChain.begin(),
-        B.CreateLoad(PA->PointerChain.front()));
-
-  Value *Lhs = RecreateValueChain(PA->PointerChain, B);
-
-  if(PA->Load == NULL && isa<AllocaInst>(PA->ValueChain.front())){
-    // Assigning to the address of the Rhs
-    SetFatPointerToAddress(Lhs, PA->ValueChain.front(), B);
-    PA->Store->eraseFromParent();
-    return;
-  }
-
-  if(isa<Constant>(PA->ValueChain.back())
-      && isa<GEPOperator>(PA->ValueChain.back())){
-    auto C = dyn_cast<GEPOperator>(PA->ValueChain.back());
-    // Set equal to a constant string
-    Value *FP = FatPointers::CreateFatPointer(C->getType(), B);
-
-    // Set the bounds from the constant string
-    // This could be replaced with a constant calculation
-    Type *CharArray = C->getPointerOperand()->getType()->getPointerElementType();
-    Value *Size = GetSizeValue(CharArray, B);
-    StoreInFatPointerValue(FP, C, B);
-    SetFatPointerBaseAndBound(FP, C, Size, B);
-
-    B.CreateStore(B.CreateLoad(FP), Lhs);
-    PA->Store->eraseFromParent();
-    return;
-  }  
-  
-  if(PA->Load != NULL && isa<GetElementPtrInst>(PA->ValueChain.front()))
-    PA->ValueChain.insert(PA->ValueChain.begin(), 
-        B.CreateLoad(PA->ValueChain.front()));
-  
-  Value *Rhs = RecreateValueChain(PA->ValueChain, B);
-
-  if(isa<AllocaInst>(PA->ValueChain.back())){
-    // We're assigning to the value of Rhs
-    Rhs = B.CreateLoad(Rhs);
-  }
-
-  B.CreateStore(Rhs, Lhs);
-
-  if(PA->Load)
-    PA->Load->eraseFromParent();
-  PA->Store->eraseFromParent();
-}
-void PointerUseTransform::ApplyTo(PointerReturn *PR){
-  PR->FollowChains();
-  PR->Print();
-
-  IRBuilder<> B(PR->Return);
-  Value *Rhs = RecreateValueChain(PR->ValueChain, B);
-  errs() << *PR->Load << "\n";
-  if(PR->Load){
-  errs() << __LINE__ << "\n";
-    PR->Load->eraseFromParent();
-    Rhs = B.CreateLoad(Rhs);
-  }
-  B.CreateRet(Rhs);
-  PR->Return->eraseFromParent();
-}
-void PointerUseTransform::ApplyTo(PointerParameter *PP){
-  PP->FollowChains();
-
-  Function *F = PP->Call->getCalledFunction();
-  bool StripFatPointers = false;
-  if(RawToFPMap.count(F))
-    F = RawToFPMap[F];
-  else
-    StripFatPointers = true;
-
-  IRBuilder<> B(PP->Call);
-  std::vector<Value *> Args;
-
-  // For each parameter
-  for(int i=0; i<PP->ValueChains.size(); i++){
-    if(isa<AllocaInst>(PP->ValueChains[i].back())){
-      if(F->getName() == "free"){
-        Value *FP = PP->ValueChains[i].back();
-
-        Value *Null = FatPointers::GetFieldNull(FP);
-        StoreInFatPointerBase(FP, Null, B);
-        StoreInFatPointerBound(FP, Null, B);
-      }
-      // Remove the last load from the chain
-      Value *Param = RecreateValueChain(PP->ValueChains[i], B);
-
-      if(PP->Loads[i]){
-        PP->Loads[i]->eraseFromParent();
-        Param = B.CreateLoad(Param);
-      }
-      if(StripFatPointers)
-        if(FatPointers::IsFatPointerType(Param->getType()))
-          Param = LoadFatPointerValue(cast<LoadInst>(Param)->getPointerOperand(), B);
-
-      Args.push_back(Param);
-    } else {
-      Args.push_back(PP->Call->getArgOperand(i));
-    }
-  }
-  CallInst *NewCall = CallInst::Create(F, Args, "", PP->Call);
-
-  PP->Call->replaceAllUsesWith(NewCall);
-  PP->Call->eraseFromParent();
-}
-void PointerUseTransform::ApplyTo(PointerCompare *PC){
-  PC->FollowChains();
-  PC->Print();
-
-  IRBuilder<> B(PC->Cmp);
-  Value *V1 = RecreateValueChain(PC->Chain1, B);
-  Value *V2 = RecreateValueChain(PC->Chain2, B);
-  Value *NewCmp;
-  if(isa<ICmpInst>(PC->Cmp)){
-    NewCmp = B.CreateICmp(PC->Cmp->getPredicate(), V1, V2);
-  } else {
-    NewCmp = B.CreateFCmp(PC->Cmp->getPredicate(), V1, V2);
-  }
-  PC->Cmp->replaceAllUsesWith(NewCmp);
-  PC->Cmp->eraseFromParent();
-}
-// */
 
 void PointerUseTransform::PointerUseTransform::ApplyTo(PU *P){
   RecreateValueChain(P->Chain);
@@ -165,7 +38,6 @@ void PointerUseTransform::ApplyTo(PointerParameter *PP){
   Function *F = Call->getCalledFunction();
 
   if(RawToFPMap.count(F)){
-    errs() << "No transform: " << F->getName() << "\n";
     // Switch this function call to call the Fat Pointer version
     // -- Collect the parameters
     std::vector<Value *> Args;
@@ -181,14 +53,12 @@ void PointerUseTransform::ApplyTo(PointerParameter *PP){
     Call->eraseFromParent();
   } else {
     // Strip the fat pointers
-    errs() << "Transform: " << F->getName() << "\n";
     IRBuilder<> B(Call);
     for(int i=0; i<Call->getNumArgOperands(); i++){
       Value *Param = Call->getArgOperand(i);
 
       if(FatPointers::IsFatPointerType(Param->getType())){
         Call->setArgOperand(i, LoadFatPointerValue(Param, B));
-        //Call->setArgOperand(i, LoadFatPointerValue(cast<LoadInst>(Param)->getPointerOperand(), B));
       }
     }
   }
@@ -214,6 +84,19 @@ void PointerUseTransform::RecreateValueChain(std::vector<Value *> Chain){
             C->getArgOperand(0), 
             B.CreatePtrToInt(PrevBase, IntegerType)),
           PrevBase->getType());
+    }
+  }
+
+  // If the chain ends with a free instruction, set the base to null, signifying
+  // unset after the call
+  if(auto C = dyn_cast<CallInst>(Chain.back())){
+    if(C->getCalledFunction()->getName() == "free"){
+      BasicBlock::iterator iter = C;
+      iter++;
+      IRBuilder<> B(iter);
+      Value *FatPointer = RawToFPAllocaMap[cast<AllocaInst>(Chain.front())];
+      Value *Null = FatPointers::GetFieldNull(FatPointer);
+      StoreInFatPointerBase(FatPointer, Null, B);
     }
   }
 
@@ -247,6 +130,12 @@ void PointerUseTransform::RecreateValueChain(std::vector<Value *> Chain){
     if(R->getReturnValue()->getType()->isPointerTy())
       ExpectedFatPointer = true;
   
+  // Store this for later use for CCured optimisation
+  Value *PointerId = NULL;
+  if(auto V = dyn_cast<AllocaInst>(Chain.front()))
+    if(RawToFPAllocaMap.count(V))
+      PointerId = RawToFPAllocaMap[V];
+  int PointerLevel = 0;
 
   for(int i=0; i<Chain.size(); i++){
     Value *CurrentLink = Chain[i];
@@ -267,13 +156,18 @@ void PointerUseTransform::RecreateValueChain(std::vector<Value *> Chain){
           PrevBound  = LoadFatPointerBound(Op, B);
 
           // TODO: If we have a GEP next, delay the bounds checking until after it
-          FatPointers::CreateBoundsCheck(B, LoadFatPointerValue(Op, B),
-              PrevBase, PrevBound, Print, M);
+          if(this->Qualifiers[Pointer(PointerId, PointerLevel)] == SAFE)
+            errs() << "Don't need to bounds check for: " << *L << "\n";
+          else
+            FatPointers::CreateBoundsCheck(B, LoadFatPointerValue(Op, B),
+                PrevBase, PrevBound, Print, M);
 
           L->replaceAllUsesWith(LoadFatPointerValue(Op, B));
           L->eraseFromParent();
         }
       }
+
+      PointerLevel++;
     } else if(auto G = dyn_cast<GetElementPtrInst>(CurrentLink)){
       IRBuilder<> B(G);
       if((i == Chain.size() - 2) && ExpectedFatPointer){
@@ -308,7 +202,6 @@ void PointerUseTransform::RecreateValueChain(std::vector<Value *> Chain){
     } else if(auto C = dyn_cast<CastInst>(CurrentLink)){
       if((i == Chain.size() - 2) && ExpectedFatPointer){
 
-        errs() << "HERE\n";
         IRBuilder<> B(C);
 
         Type *DestTy;
