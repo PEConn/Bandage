@@ -244,7 +244,7 @@ void PointerUseTransform::RecreateValueChain(std::vector<Value *> Chain){
     if(RawToFPMap.count(C->getCalledFunction()))
       ExpectedFatPointer = true;
   if(auto R = dyn_cast<ReturnInst>(Chain.back()))
-    if(R->getReturnValue()->getType()->isPointerType())
+    if(R->getReturnValue()->getType()->isPointerTy())
       ExpectedFatPointer = true;
   
 

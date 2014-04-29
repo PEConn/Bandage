@@ -197,6 +197,8 @@ PU::PU(Value *V, Value *O){
   while(V->use_begin() != V->use_end()){
     V = *V->use_begin();
     Chain.push_back(V);
+    if(isa<CallInst>(V))
+      break;
   }
 }
 void PU::DispatchTransform(PointerUseTransform *T){
