@@ -68,10 +68,10 @@ void FatPointers::CreateBoundsCheckFunction(Type *PointerType, Function *Print, 
   FunctionType *FuncType = FunctionType::get(
       Type::getVoidTy(PointerType->getContext()), ParamTypes, false);
 
-  Function *BoundsCheck = Function::Create(FuncType,
+  Function *BoundsCheckFunc = Function::Create(FuncType,
       GlobalValue::LinkageTypes::ExternalLinkage, "BoundsCheck", M);
     
-  Function::arg_iterator Args = BoundsCheck->arg_begin();
+  Function::arg_iterator Args = BoundsCheckFunc->arg_begin();
   Value *Val = Args++;
   Val->setName("Value");
   Value *Base = Args++;
@@ -79,9 +79,12 @@ void FatPointers::CreateBoundsCheckFunction(Type *PointerType, Function *Print, 
   Value *Bound = Args++;
   Bound->setName("Bound");
 
-  BasicBlock *UnsetCheck = BasicBlock::Create(PointerType->getContext(), 
-      "UnsetCheck", BoundsCheck);
-  IRBuilder<> B(UnsetCheck);
+
+  Type *IntegerType = IntegerType::getInt64Ty(Val->getContext());
+
+  BasicBlock *NullCheckBB = BasicBlock::Create(PointerType->getContext(), 
+      "NullCheck", BoundsCheckFunc);
+  IRBuilder<> B(NullCheckBB);
 
   /*
   if(Print){
@@ -91,70 +94,68 @@ void FatPointers::CreateBoundsCheckFunction(Type *PointerType, Function *Print, 
   }
   */
 
-  Type *IntegerType = IntegerType::getInt64Ty(Val->getContext());
+  // Create NULL check (does Value == NULL)
+  Value *ValueAsInt = B.CreatePtrToInt(Val, IntegerType);
+  Value *IsValueNull = B.CreateICmpEQ(ConstantInt::get(IntegerType, 0), ValueAsInt);
+  BasicBlock::iterator iter = BasicBlock::iterator(cast<Instruction>(IsValueNull));
+  iter++;
 
-  // Create the check for (Base == NULL)
+  BasicBlock *NoBoundsCheckBB = NullCheckBB->splitBasicBlock(iter, "NoBoundsCheck");
+  removeTerminator(NullCheckBB);
+
+  // Create NoBounds check (does Base == NULL)
+  B.SetInsertPoint(NoBoundsCheckBB);
   Value *BaseAsInt = B.CreatePtrToInt(Base, IntegerType);
   Value *IsBaseNull = B.CreateICmpEQ(ConstantInt::get(IntegerType, 0), BaseAsInt);
-  BasicBlock::iterator iter = BasicBlock::iterator(cast<Instruction>(IsBaseNull));
+  iter = BasicBlock::iterator(cast<Instruction>(IsBaseNull));
   iter++;
-
-  BasicBlock *InvalidCheck = UnsetCheck->splitBasicBlock(iter, "InvalidCheck");
-  removeTerminator(UnsetCheck);
-
-  // Create the check for (Base == Bound)
-  B.SetInsertPoint(InvalidCheck);
-  Value *BoundAsInt = B.CreatePtrToInt(Bound, IntegerType);
-  Value *IsBaseEqBound = B.CreateICmpEQ(BaseAsInt, BoundAsInt);
-  iter = BasicBlock::iterator(cast<Instruction>(IsBaseEqBound));
-  iter++;
-
-  BasicBlock *InBoundsCheck = InvalidCheck->splitBasicBlock(iter, "InBoundsCheck");
-  removeTerminator(InvalidCheck);
   
-  // Create the check for (Base <= Value < Bound)
-  B.SetInsertPoint(InBoundsCheck);
-  Value *ValueAsInt = B.CreatePtrToInt(Val, IntegerType);
+  BasicBlock *BoundsCheckBB = NoBoundsCheckBB->splitBasicBlock(iter, "BoundsCheck");
+  removeTerminator(NoBoundsCheckBB);
+
+  // Create BoundsCheck (Base <= Value < Bound)
+  B.SetInsertPoint(BoundsCheckBB);
+  Value *BoundAsInt = B.CreatePtrToInt(Bound, IntegerType);
   Value *InLowerBound = B.CreateICmpUGE(ValueAsInt, BaseAsInt);
   Value *InHigherBound = B.CreateICmpULT(ValueAsInt, BoundAsInt);
   Instruction *IsInBounds = cast<Instruction>(B.CreateAnd(InLowerBound,InHigherBound));
-
   iter = BasicBlock::iterator(cast<Instruction>(IsInBounds));
   iter++;
 
-  BasicBlock *AfterChecks = InBoundsCheck->splitBasicBlock(iter, "AfterChecks");
-  removeTerminator(InBoundsCheck);
+  BasicBlock *AfterChecksBB = BoundsCheckBB->splitBasicBlock(iter, "AfterChecks");
+  removeTerminator(BoundsCheckBB);
 
   // Now create the failure basic blocks
   LLVMContext *C = &IsInBounds->getContext();
-  BasicBlock *Invalid = BasicBlock::Create(*C, "Invalid", BoundsCheck);
-  B.SetInsertPoint(Invalid);
-  if(Print)
-    B.CreateCall(Print, Str(B, "Invalid"));
-  B.CreateBr(AfterChecks);
 
-  BasicBlock *Unset = BasicBlock::Create(*C, "Unset", BoundsCheck);
-  B.SetInsertPoint(Unset);
+  BasicBlock *NullBB = BasicBlock::Create(*C, "Null", BoundsCheckFunc);
+  B.SetInsertPoint(NullBB);
   if(Print)
-    B.CreateCall(Print, Str(B, "Unset"));
-  B.CreateBr(AfterChecks);
+    B.CreateCall(Print, Str(B, "Null"));
+  B.CreateBr(AfterChecksBB);
 
-  BasicBlock *OutOfBounds = BasicBlock::Create(*C, "OutOfBounds", BoundsCheck);
-  B.SetInsertPoint(OutOfBounds);
+  BasicBlock *NoBoundsBB= BasicBlock::Create(*C, "NoBounds", BoundsCheckFunc);
+  B.SetInsertPoint(NoBoundsBB);
+  if(Print)
+    B.CreateCall(Print, Str(B, "NoBounds"));
+  B.CreateBr(AfterChecksBB);
+
+  BasicBlock *OutOfBoundsBB = BasicBlock::Create(*C, "OutOfBounds", BoundsCheckFunc);
+  B.SetInsertPoint(OutOfBoundsBB);
   if(Print)
     B.CreateCall(Print, Str(B, "OutOfBounds"));
-  B.CreateBr(AfterChecks);
+  B.CreateBr(AfterChecksBB);
 
   // Link the Check basic blocks to their failures
-  B.SetInsertPoint(UnsetCheck);
-  B.CreateCondBr(IsBaseNull, Unset,InvalidCheck);
-  B.SetInsertPoint(InvalidCheck);
-  B.CreateCondBr(IsBaseEqBound, Invalid, InBoundsCheck);
-  B.SetInsertPoint(InBoundsCheck);
-  B.CreateCondBr(IsInBounds, AfterChecks, OutOfBounds);
+  B.SetInsertPoint(NullCheckBB);
+  B.CreateCondBr(IsValueNull, NullBB, NoBoundsCheckBB);
+  B.SetInsertPoint(NoBoundsCheckBB);
+  B.CreateCondBr(IsBaseNull, NoBoundsBB, BoundsCheckBB);
+  B.SetInsertPoint(BoundsCheckBB);
+  B.CreateCondBr(IsInBounds, AfterChecksBB, OutOfBoundsBB);
 
-  B.SetInsertPoint(AfterChecks);
+  B.SetInsertPoint(AfterChecksBB);
   B.CreateRetVoid();
 
-  BoundsChecks[PointerType] = BoundsCheck;
+  BoundsChecks[PointerType] = BoundsCheckFunc;
 }
