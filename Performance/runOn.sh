@@ -37,7 +37,7 @@ rm ${r0}.s ${r3}.s ${b0}.s ${b3}.s > /dev/null
 rm ${r0}.txt ${r3}.txt ${b0}.txt ${b3}.txt > /dev/null || true
 
 echo `date` >> ${i}.log
-for benchmark in $r0 $r3 $b0 $b3
+for benchmark in $r0 $b0 # $r3 $b3
 do
   echo -n "Timing ${benchmark}"
   for i in {1..5}
@@ -53,8 +53,8 @@ grep -e '[0-9]\.[0-9]' ${b0}.txt > Temp
 cat Temp > ${b0}.txt
 
 awk '{total += $1} END {print "Raw -O0: " total/NR;}' ${r0}.txt >> ${1}.log
-awk '{total += $1} END {print "Raw -O3: " total/NR;}' ${r3}.txt >> ${1}.log
+#awk '{total += $1} END {print "Raw -O3: " total/NR;}' ${r3}.txt >> ${1}.log
 awk '{total += $1} END {print "Ban -O0: " total/NR;}' ${b0}.txt >> ${1}.log
-awk '{total += $1} END {print "Ban -O3: " total/NR;}' ${b3}.txt >> ${1}.log
+#awk '{total += $1} END {print "Ban -O3: " total/NR;}' ${b3}.txt >> ${1}.log
 
-tail -n 4 ${1}.log
+tail -n 2 ${1}.log

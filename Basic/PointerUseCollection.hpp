@@ -11,7 +11,8 @@ using namespace llvm;
 class PointerUseCollection{
 public:
   PointerUseCollection(FunctionDuplicater *FD, Module &M);
-  std::set<PointerUse *> PointerUses;
+  std::set<PU *> PointerUses;
+  std::set<PointerParameter *> PointerParams;
 private:
   void CollectInstructions(std::set<Function *> Functions, Module &M);
 };

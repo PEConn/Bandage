@@ -178,8 +178,12 @@ void PointerParameter::DispatchTransform(PointerUseTransform *T){
 
 void PU::Print(){
   errs() << "Use chain for " << *Orig << "\n";
-  for(auto L: Chain)
-    errs() << "| " << *L << "\n";
+  for(auto L: Chain){
+    if(L)
+      errs() << "| " << *L << "\n";
+    else
+      errs() << "| " << "<NULL>" << "\n";
+  }
   errs() << "\\--------------\n";
 }
 bool PU::IsValid(){
@@ -195,7 +199,6 @@ PU::PU(Value *V, Value *O){
     Chain.push_back(V);
   }
 }
-
 void PU::DispatchTransform(PointerUseTransform *T){
   T->ApplyTo(this);
 }

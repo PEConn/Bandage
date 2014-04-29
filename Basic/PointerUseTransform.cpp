@@ -13,8 +13,13 @@ PointerUseTransform::PointerUseTransform(PointerUseCollection *PUC, Module &M, s
 }
 
 void PointerUseTransform::Apply(){
-  for(auto U: PUC->PointerUses)
+  for(auto U: PUC->PointerUses){
+    U->Print();
     U->DispatchTransform(this);
+  }
+  for(auto U: PUC->PointerParams){
+    U->DispatchTransform(this);
+  }
 }
 /*
 void PointerUseTransform::ApplyTo(PointerAssignment *PA){
@@ -232,11 +237,16 @@ void PointerUseTransform::RecreateValueChain(std::vector<Value *> Chain){
   }
 
   bool ExpectedFatPointer = false;
-  if(auto S = dyn_cast<StoreInst>(Chain.back())){
-    if(IsStoreValueOperand(S, Chain[Chain.size() - 2])){
+  if(auto S = dyn_cast<StoreInst>(Chain.back()))
+    if(IsStoreValueOperand(S, Chain[Chain.size() - 2]))
       ExpectedFatPointer = true;
-    }
-  }
+  if(auto C = dyn_cast<CallInst>(Chain.back()))
+    if(RawToFPMap.count(C->getCalledFunction()))
+      ExpectedFatPointer = true;
+  if(auto R = dyn_cast<ReturnInst>(Chain.back()))
+    if(R->getReturnValue()->getType()->isPointerType())
+      ExpectedFatPointer = true;
+  
 
   for(int i=0; i<Chain.size(); i++){
     Value *CurrentLink = Chain[i];

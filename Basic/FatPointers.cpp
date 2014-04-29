@@ -83,11 +83,13 @@ void FatPointers::CreateBoundsCheckFunction(Type *PointerType, Function *Print, 
       "UnsetCheck", BoundsCheck);
   IRBuilder<> B(UnsetCheck);
 
+  /*
   if(Print){
     B.CreateCall2(Print, Str(B, "Base:  %p"), Base);
     B.CreateCall2(Print, Str(B, "Value: %p"), Val);
     B.CreateCall2(Print, Str(B, "Bound: %p"), Bound);
   }
+  */
 
   Type *IntegerType = IntegerType::getInt64Ty(Val->getContext());
 
