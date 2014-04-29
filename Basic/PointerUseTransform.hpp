@@ -28,7 +28,7 @@ private:
   std::map<Pointer, CCuredPointerType> Qualifiers;
   std::map<AllocaInst *, AllocaInst *> RawToFPAllocaMap;
   std::map<Value *, Value *> FPToRawVariableMap;
+  std::map<Value *, Value *> Replacements;
 };
-
 
 #endif

@@ -30,6 +30,7 @@ void PointerUseTransform::Apply(){
 }
 
 void PointerUseTransform::PointerUseTransform::ApplyTo(PU *P){
+  //P->Print();
   RecreateValueChain(P->Chain);
 }
 void PointerUseTransform::ApplyTo(PointerReturn *PR){}
@@ -70,6 +71,11 @@ void PointerUseTransform::RecreateValueChain(std::vector<Value *> Chain){
   Value *PrevBase = NULL;
   Value *PrevBound = NULL;
 
+  for(int i=0; i<Chain.size(); i++){
+    if(Replacements.count(Chain[i]))
+      Chain[i] = Replacements[Chain[i]];
+  }
+
   // If the chain starts with a malloc instruction, calculate the base and bounds
   // for the future fat pointer
   if(auto C = dyn_cast<CallInst>(Chain.front())){
@@ -78,12 +84,21 @@ void PointerUseTransform::RecreateValueChain(std::vector<Value *> Chain){
       iter++;
       IRBuilder<> B(iter);
 
-      PrevBase = C;
-      Type *IntegerType = IntegerType::getInt64Ty(PrevBase->getContext());
-      PrevBound = B.CreateIntToPtr(B.CreateAdd(
-            C->getArgOperand(0), 
-            B.CreatePtrToInt(PrevBase, IntegerType)),
-          PrevBase->getType());
+      // If the next instruction is a cast, delay creating a fat pointer until then
+      if(isa<CastInst>(Chain[1])){
+        PrevBase = C;
+        Type *IntegerType = IntegerType::getInt64Ty(PrevBase->getContext());
+        PrevBound = B.CreateIntToPtr(B.CreateAdd(
+              C->getArgOperand(0), 
+              B.CreatePtrToInt(PrevBase, IntegerType)),
+            PrevBase->getType());
+      } else {
+        Value *FP = FatPointers::CreateFatPointer(C->getType(), B);
+        C->replaceAllUsesWith(B.CreateLoad(FP));
+        StoreInFatPointerValue(FP, C, B);
+        StoreInFatPointerBase(FP, C, B);
+        StoreInFatPointerBound(FP, C, B);
+      }
     }
   }
 
@@ -122,7 +137,8 @@ void PointerUseTransform::RecreateValueChain(std::vector<Value *> Chain){
   bool ExpectedFatPointer = false;
   if(auto S = dyn_cast<StoreInst>(Chain.back()))
     if(IsStoreValueOperand(S, Chain[Chain.size() - 2]))
-      ExpectedFatPointer = true;
+      if(Chain[Chain.size() - 2]->getType()->isPointerTy())
+        ExpectedFatPointer = true;
   if(auto C = dyn_cast<CallInst>(Chain.back()))
     if(RawToFPMap.count(C->getCalledFunction()))
       ExpectedFatPointer = true;
@@ -138,6 +154,7 @@ void PointerUseTransform::RecreateValueChain(std::vector<Value *> Chain){
   int PointerLevel = 0;
 
   for(int i=0; i<Chain.size(); i++){
+    //errs() << *Chain[i] << "\n";
     Value *CurrentLink = Chain[i];
 
     if(auto L = dyn_cast<LoadInst>(CurrentLink)){
@@ -180,6 +197,7 @@ void PointerUseTransform::RecreateValueChain(std::vector<Value *> Chain){
           Indices.push_back(*I);
 
         Value *NewGep = B.CreateGEP(Op, Indices);
+        Replacements[G] = NewGep;
 
         Value *FP = FatPointers::CreateFatPointer(NewGep->getType(), B);
         Value *Null = FatPointers::GetFieldNull(FP);
@@ -197,16 +215,23 @@ void PointerUseTransform::RecreateValueChain(std::vector<Value *> Chain){
         for(auto I=G->idx_begin(), E=G->idx_end(); I != E; ++I)
           Indices.push_back(*I);
 
-        G->replaceAllUsesWith(B.CreateGEP(G->getPointerOperand(), Indices));
+        Replacements[G] = B.CreateGEP(G->getPointerOperand(), Indices);
+        G->replaceAllUsesWith(Replacements[G]);
         G->eraseFromParent();
       }
     } else if(auto C = dyn_cast<CastInst>(CurrentLink)){
+      // This should be modified to convert between fat pointer types
+      /*Value *FP = C->getOperand(0);
+      if(FatPointers::IsFatPointerType(FP)){
+        IRBuilder<> B(C);
+      }*/
       if((i == Chain.size() - 2) && ExpectedFatPointer){
 
         IRBuilder<> B(C);
 
         Type *DestTy;
-        if(C->getDestTy()->getPointerElementType()->isPointerTy()){
+        if(C->getDestTy()->isPointerTy()
+            && C->getDestTy()->getPointerElementType()->isPointerTy()){
           // If it is nested (eg int **x) cast it to a fat pointer
           DestTy = FatPointers::GetFatPointerType(
               C->getDestTy()->getPointerElementType())->getPointerTo();
