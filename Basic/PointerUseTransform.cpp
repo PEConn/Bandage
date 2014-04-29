@@ -96,7 +96,7 @@ void PointerUseTransform::RecreateValueChain(std::vector<Value *> Chain){
       IRBuilder<> B(iter);
       Value *FatPointer = RawToFPAllocaMap[cast<AllocaInst>(Chain.front())];
       Value *Null = FatPointers::GetFieldNull(FatPointer);
-      StoreInFatPointerBase(FatPointer, Null, B);
+      StoreInFatPointerValue(FatPointer, Null, B);
     }
   }
 
@@ -156,11 +156,12 @@ void PointerUseTransform::RecreateValueChain(std::vector<Value *> Chain){
           PrevBound  = LoadFatPointerBound(Op, B);
 
           // TODO: If we have a GEP next, delay the bounds checking until after it
-          if(this->Qualifiers[Pointer(PointerId, PointerLevel)] == SAFE)
-            errs() << "Don't need to bounds check for: " << *L << "\n";
-          else
+          if(this->Qualifiers[Pointer(PointerId, PointerLevel)] == SAFE){
+            FatPointers::CreateNullCheck(B, LoadFatPointerValue(Op, B), Print, M);
+          } else {
             FatPointers::CreateBoundsCheck(B, LoadFatPointerValue(Op, B),
                 PrevBase, PrevBound, Print, M);
+          }
 
           L->replaceAllUsesWith(LoadFatPointerValue(Op, B));
           L->eraseFromParent();

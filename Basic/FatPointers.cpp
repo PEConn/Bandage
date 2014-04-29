@@ -6,6 +6,7 @@
 
 std::map<Type *, StructType *> FatPointers::FatPointerTypes;
 std::map<Type *, Function *> FatPointers::BoundsChecks;
+std::map<Type *, Function *> FatPointers::NullChecks;
 
 Value* FatPointers::CreateFatPointer(Type *PointerType, IRBuilder<> &B, std::string Name){
   StructType *FatPointerType = FatPointers::GetFatPointerType(PointerType);
@@ -158,4 +159,56 @@ void FatPointers::CreateBoundsCheckFunction(Type *PointerType, Function *Print, 
   B.CreateRetVoid();
 
   BoundsChecks[PointerType] = BoundsCheckFunc;
+}
+
+void FatPointers::CreateNullCheck(IRBuilder<> &B, Value *V, Function *Print, Module *M){
+  if(NullChecks.count(V->getType()) == 0)
+    CreateNullCheckFunction(V->getType(), Print, M);
+  B.CreateCall(NullChecks[V->getType()], V);
+}
+
+void FatPointers::CreateNullCheckFunction(Type *PointerType, Function *Print, Module *M){
+  std::vector<Type *> ParamTypes;
+  ParamTypes.push_back(PointerType);
+  FunctionType *FuncType = FunctionType::get(
+      Type::getVoidTy(PointerType->getContext()), ParamTypes, false);
+
+  Function *BoundsCheckFunc = Function::Create(FuncType,
+      GlobalValue::LinkageTypes::ExternalLinkage, "NullCheck", M);
+    
+  Function::arg_iterator Args = BoundsCheckFunc->arg_begin();
+  Value *Val = Args++;
+  Val->setName("Value");
+
+  Type *IntegerType = IntegerType::getInt64Ty(Val->getContext());
+
+  BasicBlock *NullCheckBB = BasicBlock::Create(PointerType->getContext(), 
+      "NullCheck", BoundsCheckFunc);
+  IRBuilder<> B(NullCheckBB);
+
+  // Create NULL check (does Value == NULL)
+  Value *ValueAsInt = B.CreatePtrToInt(Val, IntegerType);
+  Value *IsValueNull = B.CreateICmpEQ(ConstantInt::get(IntegerType, 0), ValueAsInt);
+  BasicBlock::iterator iter = BasicBlock::iterator(cast<Instruction>(IsValueNull));
+  iter++;
+
+  BasicBlock *AfterChecksBB = NullCheckBB->splitBasicBlock(iter, "AfterCheck");
+  removeTerminator(NullCheckBB);
+
+  // Now create the failure basic block
+  LLVMContext *C = &IsValueNull->getContext();
+  BasicBlock *NullBB = BasicBlock::Create(*C, "Null", BoundsCheckFunc);
+  B.SetInsertPoint(NullBB);
+  if(Print)
+    B.CreateCall(Print, Str(B, "Null"));
+  B.CreateBr(AfterChecksBB);
+
+  // Link the Check basic blocks to their failures
+  B.SetInsertPoint(NullCheckBB);
+  B.CreateCondBr(IsValueNull, NullBB, AfterChecksBB);
+
+  B.SetInsertPoint(AfterChecksBB);
+  B.CreateRetVoid();
+
+  NullChecks[PointerType] = BoundsCheckFunc;
 }

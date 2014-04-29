@@ -194,7 +194,7 @@ std::vector<Value *> GetIndices(int val, LLVMContext& C){
 }
 
 Value* Str(IRBuilder<> B, std::string str){
-  return B.CreateGlobalStringPtr(StringRef(blue + str + "\n" + reset));
+  return B.CreateGlobalStringPtr(StringRef(blue + str + reset + "\n"));
 }
 Value *ConvertFatPointerToRawPointer(Value *FatPointer, IRBuilder<> B){
   // Follow the fat pointer until its end
