@@ -1,3 +1,4 @@
+// RUN: ./runOn.sh %s | FileCheck %s
 #include <stdio.h>
 #include <stdlib.h>
 
