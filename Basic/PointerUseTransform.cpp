@@ -78,27 +78,47 @@ void PointerUseTransform::RecreateValueChain(std::vector<Value *> Chain){
 
   // If the chain starts with a malloc instruction, calculate the base and bounds
   // for the future fat pointer
+  // If the chain starts with a call from a non-fat-pointer function, 
+  // Wrap it in a fat pointer
   if(auto C = dyn_cast<CallInst>(Chain.front())){
-    if(C->getCalledFunction()->getName() == "malloc"){
-      BasicBlock::iterator iter = C;
-      iter++;
-      IRBuilder<> B(iter);
+    if(C->getType()->isPointerTy()){
+      if(!RawToFPMap.count(C->getCalledFunction())){
+        BasicBlock::iterator iter = C;
+        iter++;
+        IRBuilder<> B(iter);
 
-      // If the next instruction is a cast, delay creating a fat pointer until then
-      if(isa<CastInst>(Chain[1])){
-        PrevBase = C;
-        Type *IntegerType = IntegerType::getInt64Ty(PrevBase->getContext());
-        PrevBound = B.CreateIntToPtr(B.CreateAdd(
-              C->getArgOperand(0), 
-              B.CreatePtrToInt(PrevBase, IntegerType)),
-            PrevBase->getType());
-      } else {
-        Value *FP = FatPointers::CreateFatPointer(C->getType(), B);
-        C->replaceAllUsesWith(B.CreateLoad(FP));
-        StoreInFatPointerValue(FP, C, B);
-        StoreInFatPointerBase(FP, C, B);
-        StoreInFatPointerBound(FP, C, B);
+        if(C->getCalledFunction()->getName() == "malloc"){
+          // If the next instruction is a cast, delay creating a fat pointer until then
+          if(isa<CastInst>(Chain[1])){
+            PrevBase = C;
+            Type *IntegerType = IntegerType::getInt64Ty(PrevBase->getContext());
+            PrevBound = B.CreateIntToPtr(B.CreateAdd(
+                  C->getArgOperand(0), 
+                  B.CreatePtrToInt(PrevBase, IntegerType)),
+                PrevBase->getType());
+          } else {
+            Value *FP = FatPointers::CreateFatPointer(C->getType(), B);
+            C->replaceAllUsesWith(B.CreateLoad(FP));
+            StoreInFatPointerValue(FP, C, B);
+            StoreInFatPointerBase(FP, C, B);
+            StoreInFatPointerBound(FP, C, B);
+          }
+        } else {
+          Value *Null = ConstantPointerNull::get(cast<PointerType>(C->getType()));
+
+          if(isa<CastInst>(Chain[1])){
+            PrevBase = Null;
+            PrevBound = Null;
+          } else {
+            Value *FP = FatPointers::CreateFatPointer(C->getType(), B);
+            C->replaceAllUsesWith(B.CreateLoad(FP));
+            StoreInFatPointerValue(FP, C, B);
+            StoreInFatPointerBase(FP, Null, B);
+            StoreInFatPointerBound(FP, Null, B);
+          }
+        }
       }
+
     }
   }
 
