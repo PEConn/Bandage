@@ -60,7 +60,6 @@ int CountPointerLevels(Type *T){
 void StoreInFatPointerValue(Value *FatPointer, Value *Val, IRBuilder<> &B){
   std::vector<Value *> FieldIdx = GetIndices(0, FatPointer->getContext());
   Value *FatPointerField = B.CreateGEP(FatPointer, FieldIdx, "Value"); 
-  errs() << "Storing " << *Val << " in " << *FatPointer << "\n";
   B.CreateStore(Val, FatPointerField);
 }
 void StoreInFatPointerBase(Value *FatPointer, Value *Val, IRBuilder<> &B){

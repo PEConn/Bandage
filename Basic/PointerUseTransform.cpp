@@ -174,28 +174,43 @@ void PointerUseTransform::RecreateValueChain(std::vector<Value *> Chain){
 
     if(auto L = dyn_cast<LoadInst>(CurrentLink)){
       IRBuilder<> B(L);
-      Value *Op = L->getPointerOperand();
-      if(FatPointers::IsFatPointerType(Op->getType()->getPointerElementType())){
+      Value *Addr = L->getPointerOperand();
+      if(FatPointers::IsFatPointerType(Addr->getType()->getPointerElementType())){
         if((i == Chain.size() - 2) && ExpectedFatPointer){
           // Recreate the load for typing
-          L->replaceAllUsesWith(B.CreateLoad(Op));
+          L->replaceAllUsesWith(B.CreateLoad(Addr));
           L->eraseFromParent();
         } else {
           // Load the value from the fat pointer
           // Remember the most recent fat pointer so we can carry over bounds on
           // GEP or Cast
-          PrevBase = LoadFatPointerBase(Op, B);
-          PrevBound  = LoadFatPointerBound(Op, B);
+          PrevBase = LoadFatPointerBase(Addr, B);
+          PrevBound  = LoadFatPointerBound(Addr, B);
 
           // TODO: If we have a GEP next, delay the bounds checking until after it
-          if(this->Qualifiers[Pointer(PointerId, PointerLevel)] == SAFE){
-            FatPointers::CreateNullCheck(B, LoadFatPointerValue(Op, B), Print, M);
+          auto Next = Chain[i+1];
+          if(Replacements.count(Next))
+            Next = Replacements[Next];
+          if(isa<GetElementPtrInst>(Next)
+              && (i != Chain.size() - 3 || !ExpectedFatPointer)){
+            auto G = dyn_cast<GetElementPtrInst>(Next);
+            BasicBlock::iterator iter = G;
+            iter++;
+            IRBuilder<> AfterGep(iter);
+
+            if(G->getType() == PrevBase->getType())
+              //B.CreateCall2(Print, Str(AfterGep, "Gep:  %p"), G);
+              FatPointers::CreateBoundsCheck(AfterGep, G, PrevBase, PrevBound, Print, M);
           } else {
-            FatPointers::CreateBoundsCheck(B, LoadFatPointerValue(Op, B),
-                PrevBase, PrevBound, Print, M);
+            if(this->Qualifiers[Pointer(PointerId, PointerLevel)] == SAFE){
+              FatPointers::CreateNullCheck(B, LoadFatPointerValue(Addr, B), Print, M);
+            } else {
+              FatPointers::CreateBoundsCheck(B, LoadFatPointerValue(Addr, B),
+                  PrevBase, PrevBound, Print, M);
+            }
           }
 
-          L->replaceAllUsesWith(LoadFatPointerValue(Op, B));
+          L->replaceAllUsesWith(LoadFatPointerValue(Addr, B));
           L->eraseFromParent();
         }
       }

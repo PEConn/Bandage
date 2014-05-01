@@ -87,7 +87,7 @@ void FatPointers::CreateBoundsCheckFunction(Type *PointerType, Function *Print, 
       "NullCheck", BoundsCheckFunc);
   IRBuilder<> B(NullCheckBB);
 
-  if(Print){
+  if(false && Print){
     B.CreateCall2(Print, Str(B, "Base:  %p"), Base);
     B.CreateCall2(Print, Str(B, "Value: %p"), Val);
     B.CreateCall2(Print, Str(B, "Bound: %p"), Bound);
