@@ -87,13 +87,11 @@ void FatPointers::CreateBoundsCheckFunction(Type *PointerType, Function *Print, 
       "NullCheck", BoundsCheckFunc);
   IRBuilder<> B(NullCheckBB);
 
-  /*
   if(Print){
     B.CreateCall2(Print, Str(B, "Base:  %p"), Base);
     B.CreateCall2(Print, Str(B, "Value: %p"), Val);
     B.CreateCall2(Print, Str(B, "Bound: %p"), Bound);
   }
-  */
 
   // Create NULL check (does Value == NULL)
   Value *ValueAsInt = B.CreatePtrToInt(Val, IntegerType);
