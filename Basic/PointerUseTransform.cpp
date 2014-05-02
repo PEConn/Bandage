@@ -149,6 +149,20 @@ void PointerUseTransform::RecreateValueChain(std::vector<Value *> Chain){
     }
   }
 
+  // Set to the address
+  if(Chain.size() == 2){
+    if(isa<StoreInst>(Chain[1])
+        && isa<AllocaInst>(Chain[0])){
+      auto S = cast<StoreInst>(Chain[1]);
+      if(IsStoreValueOperand(S, Chain[0])){
+        IRBuilder<> B(S);
+        Value *FP = FatPointers::CreateFatPointer(Chain[0]->getType(), B);
+        SetFatPointerToAddress(FP, Chain[0], B);
+        S->setOperand(0, B.CreateLoad(FP));
+      }
+    }
+  }
+
   bool ExpectedFatPointer = false;
   if(auto S = dyn_cast<StoreInst>(Chain.back()))
     if(IsStoreValueOperand(S, Chain[Chain.size() - 2]))
