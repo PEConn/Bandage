@@ -15,8 +15,6 @@ typedef struct Triangle{
 } Triangle;
 
 int main(){
-  Point a;
-  Triangle t;
   Point *a = malloc(sizeof(Point));
   a->x = 1;
   a->y = 2;
