@@ -36,17 +36,18 @@ void FunctionDuplicater::DuplicateFunctions(Module &M, TypeDuplicater *TD){
 
     std::vector<Type *> Params;
     for(int i=0; i<OldFuncType->getNumParams(); i++){
-      if(OldFuncType->getParamType(i)->isPointerTy() && F != Main)
-        Params.push_back(FatPointers::GetFatPointerType(OldFuncType->getParamType(i)));
+      Type *Param = TD->remapType(OldFuncType->getParamType(i));
+      if(Param->isPointerTy() && F != Main)
+        Params.push_back(FatPointers::GetFatPointerType(Param));
       else
-        Params.push_back(OldFuncType->getParamType(i));
+        Params.push_back(Param);
     }
 
-    Type *ReturnType;
-    if(OldFuncType->getReturnType()->isPointerTy() && F != Main)
-      ReturnType = FatPointers::GetFatPointerType(OldFuncType->getReturnType());
+    Type *ReturnType = TD->remapType(OldFuncType->getReturnType());
+    if(ReturnType->isPointerTy() && F != Main)
+      ReturnType = FatPointers::GetFatPointerType(ReturnType);
     else
-      ReturnType = OldFuncType->getReturnType();
+      ReturnType = ReturnType;
 
     // TODO: Copy over if the function type is VarArg
     FunctionType *NewFuncType = FunctionType::get(ReturnType, Params, false);

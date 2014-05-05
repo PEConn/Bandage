@@ -149,6 +149,17 @@ void PointerUseTransform::RecreateValueChain(std::vector<Value *> Chain){
     }
   }
 
+  // Set equal to null
+  if(auto S = dyn_cast<StoreInst>(Chain.back())){
+    if(auto C = dyn_cast<ConstantPointerNull>(S->getValueOperand())){
+      // Make a null of the correct type
+      IRBuilder<> B(S);
+      Value *Null = FatPointers::GetFieldNull(S->getPointerOperand());
+      StoreInFatPointerValue(S->getPointerOperand(), Null, B);
+      S->eraseFromParent();
+    }
+  }
+
   // Set to the address
   if(Chain.size() == 2){
     if(isa<StoreInst>(Chain[1])
@@ -201,10 +212,11 @@ void PointerUseTransform::RecreateValueChain(std::vector<Value *> Chain){
           PrevBase = LoadFatPointerBase(Addr, B);
           PrevBound  = LoadFatPointerBound(Addr, B);
 
-          // TODO: If we have a GEP next, delay the bounds checking until after it
           auto Next = Chain[i+1];
           if(Replacements.count(Next))
             Next = Replacements[Next];
+
+          // If we have a GEP next, delay the bounds checking until after it
           if(isa<GetElementPtrInst>(Next)
               && (i != Chain.size() - 3 || !ExpectedFatPointer)){
             auto G = dyn_cast<GetElementPtrInst>(Next);
@@ -213,8 +225,10 @@ void PointerUseTransform::RecreateValueChain(std::vector<Value *> Chain){
             IRBuilder<> AfterGep(iter);
 
             if(G->getType() == PrevBase->getType())
-              //B.CreateCall2(Print, Str(AfterGep, "Gep:  %p"), G);
               FatPointers::CreateBoundsCheck(AfterGep, G, PrevBase, PrevBound, Print, M);
+          } else if(isa<CmpInst>(Next)){
+            // If we have a compare next, don't bother bounds checking
+            // eg. for the case of "if(t == NULL)"
           } else {
             if(this->Qualifiers[Pointer(PointerId, PointerLevel)] == SAFE){
               FatPointers::CreateNullCheck(B, LoadFatPointerValue(Addr, B), Print, M);
