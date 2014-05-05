@@ -94,7 +94,8 @@ void PointerAnalysis::CollectPointers(Module &M){
       } else if (auto I = dyn_cast<IntToPtrInst>(ValueOperand)){
         IDCons.insert(new IsDynamic(P));
       } else if (auto C = dyn_cast<Constant>(ValueOperand)){
-        IDCons.insert(new IsDynamic(P));
+        if(!isa<ConstantPointerNull>(C))
+          IDCons.insert(new IsDynamic(P));
       } else if (auto A = dyn_cast<Argument>(ValueOperand)){
       } else {
         errs() << P.ToString() << " set to: " << *ValueOperand << "\n";
@@ -110,7 +111,11 @@ void PointerAnalysis::CollectPointers(Module &M){
       if(!(G = dyn_cast<GetElementPtrInst>(I)))
         continue;
 
+      // Don't attribute class member access to pointer arithmetic
       Value *PointerOperand = G->getPointerOperand();
+      if(PointerOperand->getType()->getPointerElementType()->isStructTy())
+        continue;
+
       int PointerLevel = -1;
       while(dyn_cast<LoadInst>(PointerOperand)){
         PointerLevel++;
@@ -176,7 +181,10 @@ void PointerAnalysis::CollectPointers(Module &M){
 
 void PointerAnalysis::SolveConstraints(){
   // Create a map, from pointer uses to designation
-  for(auto PU: PointerUses) Qs[PU] = UNSET;
+  for(auto PU: PointerUses){
+    if(PU.id->getType()->getPointerElementType()->isPointerTy())
+      Qs[PU] = UNSET;
+  }
 
   for(auto C: IDCons){
     Qs[C->P] = DYNQ;
