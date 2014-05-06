@@ -165,24 +165,24 @@ void PointerAnalysis::CollectPointers(Module &M){
     }
   }
 
-  /*
-  errs() << "Pointer Uses:\n";
-  for(auto PU: PointerUses) errs() << PU.ToString() << "\n";
-  
-  errs() << "Function Returns:\n";
-  for(auto Pair: FunctionReturns)
-    errs() << Pair.first->getName() << " returns " << Pair.second.ToString() << "\n";
-  
-  errs() << "Function Parameters:\n";
-  for(auto Pair: FunctionParameters)
-    errs() << Pair.first.first->getName() << ": " << Pair.first.second << " is " << Pair.second.ToString() << "\n";
+  if(PrintAnalysis){
 
-  errs() << "Constraints:\n";
-  for(auto C: IDCons) errs() << C->ToString() << "\n";
-  for(auto C: STFCons) errs() << C->ToString() << "\n";
-  for(auto C: STPCons) errs() << C->ToString() << "\n";
-  for(auto C: PACons) errs() << C->ToString() << "\n";
-  */
+    errs() << "Pointer Uses:\n";
+    for(auto PU: PointerUses) errs() << PU.ToString() << "\n";
+
+    errs() << "Function Returns:\n";
+    for(auto Pair: FunctionReturns)
+      errs() << Pair.first->getName() << " returns " << Pair.second.ToString() << "\n";
+    errs() << "Function Parameters:\n";
+    for(auto Pair: FunctionParameters)
+      errs() << Pair.first.first->getName() << ": " << Pair.first.second << " is " << Pair.second.ToString() << "\n";
+
+    errs() << "Constraints:\n";
+    for(auto C: IDCons) errs() << C->ToString() << "\n";
+    for(auto C: STFCons) errs() << C->ToString() << "\n";
+    for(auto C: STPCons) errs() << C->ToString() << "\n";
+    for(auto C: PACons) errs() << C->ToString() << "\n";
+  }
 }
 
 void PointerAnalysis::SolveConstraints(){
@@ -199,8 +199,9 @@ void PointerAnalysis::SolveConstraints(){
   //errs() << "Linking Function Returns:\n";
   for(auto C: STFCons){
     if(FunctionReturns.count(C->F)){
-      //errs() << "Added " << C->P.ToString() 
-      //  << " set to " << FunctionReturns[C->F].ToString() << "\n";
+      if(PrintAnalysis)
+        errs() << "Added " << C->P.ToString() 
+          << " set to " << FunctionReturns[C->F].ToString() << "\n";
       STPCons.insert(new SetToPointer(C->P, FunctionReturns[C->F]));
     } else {
       //errs() << "Could not link " << C->P.ToString() << "\n";
