@@ -19,7 +19,6 @@
 #include "Helpers.hpp"
 #include "FunctionDuplicater.hpp"
 #include "TypeDuplicater.hpp"
-#include "InstructionCollection.hpp"
 #include "Transform.hpp"
 #include "FatPointers.hpp"
 #include "PointerUse.hpp"

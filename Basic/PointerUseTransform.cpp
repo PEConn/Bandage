@@ -33,10 +33,8 @@ void PointerUseTransform::Apply(){
 }
 
 void PointerUseTransform::PointerUseTransform::ApplyTo(PU *P){
-  //P->Print();
   RecreateValueChain(P->Chain);
 }
-void PointerUseTransform::ApplyTo(PointerReturn *PR){}
 void PointerUseTransform::ApplyTo(PointerParameter *PP){
   CallInst *Call = PP->Call;
   Function *F = Call->getCalledFunction();
@@ -203,6 +201,7 @@ void PointerUseTransform::RecreateValueChain(std::vector<Value *> Chain){
     if(auto L = dyn_cast<LoadInst>(CurrentLink)){
       IRBuilder<> B(L);
       Value *Addr = L->getPointerOperand();
+      //errs() << *L << "\n";
       if(FatPointers::IsFatPointerType(Addr->getType()->getPointerElementType())){
         if((i == Chain.size() - 2) && ExpectedFatPointer){
           // Recreate the load for typing
@@ -254,7 +253,7 @@ void PointerUseTransform::RecreateValueChain(std::vector<Value *> Chain){
     } else if(auto G = dyn_cast<GetElementPtrInst>(CurrentLink)){
       IRBuilder<> B(G);
       if((i == Chain.size() - 2) && ExpectedFatPointer){
-        errs() << "Gep: " << *G << "\n";
+        //errs() << "Gep: " << *G << "\n";
         // We expect a fat pointer, so create one from the GEP
         Value *Op = G->getPointerOperand();
 

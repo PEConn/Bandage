@@ -13,10 +13,7 @@ public:
   PointerUseTransform(PointerUseCollection *PUC, Module &M, std::map<Function *, Function *> RawToFPMap, std::map<AllocaInst *, AllocaInst *> RawToFPAllocaMap);
 
   void Apply();
-  void ApplyTo(PointerAssignment *PA){}
-  void ApplyTo(PointerReturn *PR);
   void ApplyTo(PointerParameter *PP);
-  void ApplyTo(PointerCompare *PC){}
   void ApplyTo(PU *P);
   void AddPointerAnalysis(std::map<Pointer, CCuredPointerType> Qs, ValueToValueMapTy &VMap);
 
