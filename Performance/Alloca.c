@@ -2,20 +2,21 @@
 #include <stdio.h>
 #include "Timing.h"
 
+void Fun(){
+  int *x;
+}
+
 int main(){
 	printf("");
   int x;
   int *y;
-  y = malloc(sizeof(int));
 	
   float t0 = TIME;
-	for(int i=0; i<10000; i++){
-		for(int j=0; j<100000; j++){
-      x = *y;
+	for(int i=0; i<100000; i++){
+		for(int j=0; j<10000; j++){
+      Fun();
 		}
 	}
-  
   printf("%f\n", TIME - t0);
-  free(y);
-	return 0;
+	return x;
 }

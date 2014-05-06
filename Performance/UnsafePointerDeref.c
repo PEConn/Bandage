@@ -7,6 +7,7 @@ int main(){
   int x;
   int *y;
   y = malloc(sizeof(int));
+  x = y[0];
 	
   float t0 = TIME;
 	for(int i=0; i<10000; i++){
