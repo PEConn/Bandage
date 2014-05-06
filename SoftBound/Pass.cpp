@@ -14,6 +14,7 @@
 
 #include "LocalBounds.hpp"
 #include "BoundsChecks.hpp"
+#include "FunctionDuplicater.hpp"
 
 using namespace llvm;
 
@@ -23,8 +24,13 @@ struct SoftBound : public ModulePass{
   SoftBound() : ModulePass(ID) {}
 
   virtual bool runOnModule(Module &M) {
-    auto LB = new LocalBounds(M);
-    auto BC = new BoundsChecks(LB, M);
+    auto FD = new FunctionDuplicater(M);
+    auto LB = new LocalBounds(FD);
+    auto BC = new BoundsChecks(LB, FD);
+
+    delete BC;
+    delete LB;
+    delete FD;
     return true;
   }
   virtual void getAnalysisUsage(AnalysisUsage &AU) const { 

@@ -3,13 +3,13 @@
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/Support/InstIterator.h"
 
-LocalBounds::LocalBounds(Module &M){
-  CreateBounds(M);
+LocalBounds::LocalBounds(FunctionDuplicater *FD){
+  CreateBounds(FD);
 }
 
-void LocalBounds::CreateBounds(Module &M){
-  for(auto IF = M.begin(), EF = M.end(); IF != EF; ++IF){
-    for(auto II = inst_begin(IF), EI = inst_end(IF); II != EI; ++II){
+void LocalBounds::CreateBounds(FunctionDuplicater *FD){
+  for(auto F: FD->FPFunctions){
+    for(auto II = inst_begin(F), EI = inst_end(F); II != EI; ++II){
       Instruction *I = &*II;
       if(auto A = dyn_cast<AllocaInst>(I)){
         if(A->getType()->getPointerElementType()->isPointerTy())

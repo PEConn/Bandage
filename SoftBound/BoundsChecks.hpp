@@ -7,10 +7,10 @@ using namespace llvm;
 
 class BoundsChecks{
 public:
-  BoundsChecks(LocalBounds *LB, Module &M);
+  BoundsChecks(LocalBounds *LB, FunctionDuplicater *FD);
 private:
   LocalBounds *LB;
-  Module *M;
+  FunctionDuplicater *FD;
   void CreateBoundsChecks();
   void CreateBoundsCheck(LoadInst *L);
 };
