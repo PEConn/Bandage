@@ -254,6 +254,7 @@ void PointerUseTransform::RecreateValueChain(std::vector<Value *> Chain){
     } else if(auto G = dyn_cast<GetElementPtrInst>(CurrentLink)){
       IRBuilder<> B(G);
       if((i == Chain.size() - 2) && ExpectedFatPointer){
+        errs() << "Gep: " << *G << "\n";
         // We expect a fat pointer, so create one from the GEP
         Value *Op = G->getPointerOperand();
 
@@ -261,7 +262,7 @@ void PointerUseTransform::RecreateValueChain(std::vector<Value *> Chain){
         for(auto I=G->idx_begin(), E=G->idx_end(); I != E; ++I)
           Indices.push_back(*I);
 
-        Value *NewGep = B.CreateGEP(Op, Indices);
+        auto *NewGep = cast<GetElementPtrInst>(B.CreateGEP(Op, Indices));
         Replacements[G] = NewGep;
 
         Value *FP = FatPointers::CreateFatPointer(NewGep->getType(), B);
@@ -270,8 +271,13 @@ void PointerUseTransform::RecreateValueChain(std::vector<Value *> Chain){
         if(PrevBase){
           StoreInFatPointerBase(FP, PrevBase, B);
           StoreInFatPointerBound(FP, PrevBound, B);
+        } else if(G->getPointerOperand()->getType()->getPointerElementType()
+            ->isArrayTy()){
+          Type *Array = NewGep->getPointerOperand()->getType()->getPointerElementType();
+          Value *Size = GetSizeValue(Array, B);
+          SetFatPointerBaseAndBound(FP, NewGep, Size, B);
         } else {
-          assert(false && "GEP without previous fat pointer");
+          assert(false && "GEP without previous fat pointer to non-array");
         }
         G->replaceAllUsesWith(B.CreateLoad(FP));
         G->eraseFromParent();

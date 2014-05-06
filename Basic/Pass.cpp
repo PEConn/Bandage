@@ -26,6 +26,7 @@
 #include "PointerAllocaTransform.hpp"
 #include "PointerUseCollection.hpp"
 #include "PointerUseTransform.hpp"
+#include "ArrayAccessTransform.hpp"
 
 #include "../PointerAnalysis/Pass.hpp"
 
@@ -41,6 +42,17 @@ struct Bandage : public ModulePass{
   Bandage() : ModulePass(ID) {}
 
   virtual bool runOnModule(Module &M) {
+    auto FT = FunctionType::get(Type::getVoidTy(M.getContext()), false);
+    Function *YellOutOfBounds = Function::Create(FT, 
+        GlobalValue::LinkageTypes::ExternalLinkage, "OnError", &M);
+    BasicBlock *BB = BasicBlock::Create(M.getContext(), "OnError", YellOutOfBounds);
+
+    IRBuilder<> B(BB);
+    Function *Print = M.getFunction("printf");
+    if(Print)
+      B.CreateCall(Print, Str(B, "OutOfBounds"));
+    B.CreateRetVoid();
+
     FatPointers::Inline = !DontInlineChecks;
 
     errs() << "-------------------------------" << "\n";
@@ -68,6 +80,9 @@ struct Bandage : public ModulePass{
     errs() << "    Checked Loads: " << T->SafeLoads << "\n";
     errs() << "-------------------------------" << "\n";
 
+    auto AAT = new ArrayAccessTransform(FD->GetFPFunctions(), YellOutOfBounds);
+
+    delete AAT;
     delete T;
     delete PAT;
     delete PUC;
