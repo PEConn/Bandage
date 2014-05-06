@@ -7,6 +7,7 @@
 std::map<Type *, StructType *> FatPointers::FatPointerTypes;
 std::map<Type *, Function *> FatPointers::BoundsChecks;
 std::map<Type *, Function *> FatPointers::NullChecks;
+bool FatPointers::Inline = true;
 
 Value* FatPointers::CreateFatPointer(Type *PointerType, IRBuilder<> &B, std::string Name){
   StructType *FatPointerType = FatPointers::GetFatPointerType(PointerType);
@@ -71,6 +72,8 @@ void FatPointers::CreateBoundsCheckFunction(Type *PointerType, Function *Print, 
 
   Function *BoundsCheckFunc = Function::Create(FuncType,
       GlobalValue::LinkageTypes::ExternalLinkage, "BoundsCheck", M);
+  if(Inline)
+    BoundsCheckFunc->addFnAttr(Attribute::AlwaysInline);
     
   Function::arg_iterator Args = BoundsCheckFunc->arg_begin();
   Value *Val = Args++;
@@ -173,6 +176,9 @@ void FatPointers::CreateNullCheckFunction(Type *PointerType, Function *Print, Mo
 
   Function *BoundsCheckFunc = Function::Create(FuncType,
       GlobalValue::LinkageTypes::ExternalLinkage, "NullCheck", M);
+
+  if(Inline)
+    BoundsCheckFunc->addFnAttr(Attribute::AlwaysInline);
     
   Function::arg_iterator Args = BoundsCheckFunc->arg_begin();
   Value *Val = Args++;

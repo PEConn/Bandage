@@ -1,5 +1,9 @@
 #include "Pass.hpp"
 
+#include "llvm/Support/CommandLine.h"
+
+cl::opt<bool> PrintAnalysis("ccured-print", cl::desc("Prints the results from the CCured Analysis"));
+
 void PointerAnalysis::CollectPointers(Module &M){
   // Collect Pointer Allocations, Function Returns and Function Parameters
   std::set<Value *> Pointers;
@@ -161,6 +165,7 @@ void PointerAnalysis::CollectPointers(Module &M){
     }
   }
 
+  /*
   errs() << "Pointer Uses:\n";
   for(auto PU: PointerUses) errs() << PU.ToString() << "\n";
   
@@ -177,6 +182,7 @@ void PointerAnalysis::CollectPointers(Module &M){
   for(auto C: STFCons) errs() << C->ToString() << "\n";
   for(auto C: STPCons) errs() << C->ToString() << "\n";
   for(auto C: PACons) errs() << C->ToString() << "\n";
+  */
 }
 
 void PointerAnalysis::SolveConstraints(){
@@ -190,14 +196,14 @@ void PointerAnalysis::SolveConstraints(){
     Qs[C->P] = DYNQ;
   }
   
-  errs() << "Linking Function Returns:\n";
+  //errs() << "Linking Function Returns:\n";
   for(auto C: STFCons){
     if(FunctionReturns.count(C->F)){
-      errs() << "Added " << C->P.ToString() 
-        << " set to " << FunctionReturns[C->F].ToString() << "\n";
+      //errs() << "Added " << C->P.ToString() 
+      //  << " set to " << FunctionReturns[C->F].ToString() << "\n";
       STPCons.insert(new SetToPointer(C->P, FunctionReturns[C->F]));
     } else {
-      errs() << "Could not link " << C->P.ToString() << "\n";
+      //errs() << "Could not link " << C->P.ToString() << "\n";
     }
   }
 
@@ -250,9 +256,11 @@ void PointerAnalysis::SolveConstraints(){
     if(Qs[PU] == UNSET)
       Qs[PU] = SAFE;
 
-  errs() << "Results:\n";
-  for(auto Pair: Qs) 
-    errs() << Pair.first.ToString() << ": " << Pretty(Pair.second) << "\n";
+  if(PrintAnalysis){
+    errs() << "Results:\n";
+    for(auto Pair: Qs) 
+      errs() << Pair.first.ToString() << ": " << Pretty(Pair.second) << "\n";
+  }
 }
 
 PointerAnalysis::~PointerAnalysis(){

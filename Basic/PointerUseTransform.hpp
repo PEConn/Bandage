@@ -19,6 +19,9 @@ public:
   void ApplyTo(PointerCompare *PC){}
   void ApplyTo(PU *P);
   void AddPointerAnalysis(std::map<Pointer, CCuredPointerType> Qs, ValueToValueMapTy &VMap);
+
+  int SafeLoads;
+  int NoneSafeLoads;
 private:
   void RecreateValueChain(std::vector<Value *> Chain);
   PointerUseCollection *PUC;

@@ -57,7 +57,6 @@ void FunctionDuplicater::DuplicateFunctions(Module &M, TypeDuplicater *TD){
         GlobalValue::LinkageTypes::ExternalLinkage, 
         F->getName() + ".FP", &M);
 
-
     for(auto OldArgI = F->arg_begin(), OldArgE = F->arg_end(),
        NewArgI = NewFunc->arg_begin(), NewArgE = NewFunc->arg_end();
        OldArgI != OldArgE; OldArgI++, NewArgI++){

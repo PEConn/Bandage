@@ -39,7 +39,7 @@ void PointerAllocaTransform::TransformAllocas(){
     // Initialise the value, base and bound to null
     Value *Null = FatPointers::GetFieldNull(FatPointer);
     StoreInFatPointerValue(FatPointer, Null, B);
-    StoreInFatPointerBase(FatPointer, Null, B);
-    StoreInFatPointerBound(FatPointer, Null, B);
+    //StoreInFatPointerBase(FatPointer, Null, B);
+    //StoreInFatPointerBound(FatPointer, Null, B);
   }
 }

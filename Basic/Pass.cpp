@@ -13,6 +13,7 @@
 #include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/InstIterator.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Analysis/FindUsedTypes.h"
 
 #include "Helpers.hpp"
@@ -31,11 +32,17 @@
 using namespace llvm;
 
 namespace {
+
+cl::opt<bool> DontUseCCured("bandage-no-ccured", cl::desc("Suppresses the use of CCured analysis for the Bandage fat pointer transformation"));
+cl::opt<bool> DontInlineChecks("bandage-no-inline", cl::desc("Doesn't inline the bounds or null checks given by bandage"));
+
 struct Bandage : public ModulePass{
   static char ID;
   Bandage() : ModulePass(ID) {}
 
   virtual bool runOnModule(Module &M) {
+    FatPointers::Inline = !DontInlineChecks;
+
     errs() << "-------------------------------" << "\n";
     errs() << "Fat Pointer Transformation Pass" << "\n";
     errs() << "-------------------------------" << "\n";
@@ -48,25 +55,24 @@ struct Bandage : public ModulePass{
     errs() << "Transforming Pointer Allocations\n";
     auto *PAT = new PointerAllocaTransform(FD->GetFPFunctions());
     errs() << "Transform Pointer Uses\n";
+    errs() << "  Checks Inlined: " << FatPointers::Inline << "\n";
     auto *T = new PointerUseTransform(PUC, M, FD->RawToFPMap, PAT->RawToFPMap);
-    auto PA = &getAnalysis<PointerAnalysis>();
-    T->AddPointerAnalysis(PA->Qs, FD->VMap);
+    errs() << "  Using CCured Analysis: " << !DontUseCCured << "\n";
+    if(!DontUseCCured){
+      auto PA = &getAnalysis<PointerAnalysis>();
+      T->AddPointerAnalysis(PA->Qs, FD->VMap);
+    }
     T->Apply();
+    errs() << "  Stats:\n";
+    errs() << "    Safe Loads:    " << T->SafeLoads << "\n";
+    errs() << "    Checked Loads: " << T->SafeLoads << "\n";
     errs() << "-------------------------------" << "\n";
 
-
-
-
-
-    /*  
-    errs() << "Collecting Instructions\n";
-    auto *IC = new InstructionCollection(FD, TD);
-    errs() << "Transforming\n";
-    auto *T  = new Transform(IC, FD->RawToFPMap, M);
-    T->Apply();
-    errs() << "\n\n\n";
-    */
-
+    delete T;
+    delete PAT;
+    delete PUC;
+    delete FD;
+    delete TD;
 
     return true;
   }

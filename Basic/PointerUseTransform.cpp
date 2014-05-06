@@ -11,6 +11,9 @@ PointerUseTransform::PointerUseTransform(PointerUseCollection *PUC, Module &M, s
   this->Print = M.getFunction("printf");
   this->RawToFPMap = RawToFPMap;
   this->RawToFPAllocaMap = RawToFPAllocaMap;
+
+  this->SafeLoads = 0;
+  this->NoneSafeLoads = 0;
 }
 
 void PointerUseTransform::AddPointerAnalysis(std::map<Pointer, CCuredPointerType> Qs, ValueToValueMapTy &VMap){
@@ -224,15 +227,19 @@ void PointerUseTransform::RecreateValueChain(std::vector<Value *> Chain){
             iter++;
             IRBuilder<> AfterGep(iter);
 
-            if(G->getType() == PrevBase->getType())
+            if(G->getType() == PrevBase->getType()){
+              NoneSafeLoads++;
               FatPointers::CreateBoundsCheck(AfterGep, G, PrevBase, PrevBound, Print, M);
+            }
           } else if(isa<CmpInst>(Next)){
             // If we have a compare next, don't bother bounds checking
             // eg. for the case of "if(t == NULL)"
           } else {
             if(this->Qualifiers[Pointer(PointerId, PointerLevel)] == SAFE){
+              SafeLoads++;
               FatPointers::CreateNullCheck(B, LoadFatPointerValue(Addr, B), Print, M);
             } else {
+              NoneSafeLoads++;
               FatPointers::CreateBoundsCheck(B, LoadFatPointerValue(Addr, B),
                   PrevBase, PrevBound, Print, M);
             }
@@ -279,12 +286,7 @@ void PointerUseTransform::RecreateValueChain(std::vector<Value *> Chain){
       }
     } else if(auto C = dyn_cast<CastInst>(CurrentLink)){
       // This should be modified to convert between fat pointer types
-      /*Value *FP = C->getOperand(0);
-      if(FatPointers::IsFatPointerType(FP)){
-        IRBuilder<> B(C);
-      }*/
       if((i == Chain.size() - 2) && ExpectedFatPointer){
-
         IRBuilder<> B(C);
 
         Type *DestTy;
