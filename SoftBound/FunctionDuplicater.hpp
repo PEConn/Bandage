@@ -5,16 +5,20 @@
 #include <set>
 #include "llvm/IR/Module.h"
 
+#include "PointerReturn.hpp"
+
 using namespace llvm;
 
 class FunctionDuplicater{
 public:
   FunctionDuplicater(Module &M);
+  ~FunctionDuplicater();
 
   std::set<Function *> RawFunctions;
   std::set<Function *> FPFunctions;
   std::map<Function *, Function *> RawToFPMap;
 private:
+  PointerReturn *PR;
   Function *Main;
   void DuplicateFunctions(Module &M);
   void RenameMain();

@@ -15,6 +15,7 @@
 #include "LocalBounds.hpp"
 #include "BoundsChecks.hpp"
 #include "FunctionDuplicater.hpp"
+#include "CallModifier.hpp"
 
 using namespace llvm;
 
@@ -26,9 +27,11 @@ struct SoftBound : public ModulePass{
   virtual bool runOnModule(Module &M) {
     auto FD = new FunctionDuplicater(M);
     auto LB = new LocalBounds(FD);
+    auto CM = new CallModifier(FD, LB);
     auto BC = new BoundsChecks(LB, FD);
 
     delete BC;
+    delete CM;
     delete LB;
     delete FD;
     return true;

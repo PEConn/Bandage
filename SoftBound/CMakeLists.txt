@@ -3,4 +3,6 @@ add_llvm_loadable_module(SoftBound
   LocalBounds.cpp
   BoundsChecks.cpp
   FunctionDuplicater.cpp
+  PointerReturn.cpp
+  CallModifier.cpp
   )

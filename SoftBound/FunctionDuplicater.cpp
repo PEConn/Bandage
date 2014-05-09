@@ -3,6 +3,7 @@
 #include "llvm/Transforms/Utils/Cloning.h"
 
 FunctionDuplicater::FunctionDuplicater(Module &M){
+  PR = new PointerReturn();
   for(auto i = M.begin(), e = M.end(); i != e; ++i){
     Function *F = &*i;
     if(F->empty())
@@ -15,6 +16,9 @@ FunctionDuplicater::FunctionDuplicater(Module &M){
   }
   DuplicateFunctions(M);
   RenameMain();
+}
+FunctionDuplicater::~FunctionDuplicater(){
+  delete PR;
 }
 
 void FunctionDuplicater::DuplicateFunctions(Module &M){
@@ -33,6 +37,9 @@ void FunctionDuplicater::DuplicateFunctions(Module &M){
 
     // Will have to create fat pointers for the return type!
     Type *ReturnType = OldFuncType->getReturnType();
+    if(ReturnType->isPointerTy())
+      ReturnType = PR->GetPointerReturnType(ReturnType);
+
     FunctionType *NewFuncType = FunctionType::get(ReturnType, Params, false);
 
     Function *NewFunc = Function::Create(NewFuncType,
@@ -40,15 +47,26 @@ void FunctionDuplicater::DuplicateFunctions(Module &M){
         F->getName() + ".soft", &M);
 
     ValueToValueMapTy VMap;
-    for(auto OldArgI = F->arg_begin(), OldArgE = F->arg_end(),
-        NewArgI = NewFunc->arg_begin(), NewArgE = NewFunc->arg_end();
-        OldArgI != OldArgE; OldArgI++, NewArgI++){
+    // Map the arguments
+    // The old function should have fewer or equal arguments than the new function
+    auto OldArgI = F->arg_begin();
+    auto OldArgE = F->arg_end();
+    auto NewArgI = NewFunc->arg_begin();
+    auto NewArgE = NewFunc->arg_end();
+    for(int i=0; i<OldFuncType->getNumParams(); i++){
       VMap[OldArgI] = NewArgI;
+      auto *ParamType = OldFuncType->getParamType(i);
+      // Skip the base and bounds parameters
+      if(ParamType->isPointerTy()){
+        NewArgI++;
+        NewArgI++;
+      }
+      OldArgI++;
+      NewArgI++;
     }
     SmallVector<ReturnInst *, 5> Returns;
     CloneFunctionInto(NewFunc, F, VMap, true, Returns, "",
         NULL, NULL, NULL);
-
 
     FPFunctions.insert(NewFunc);
     RawToFPMap[F] = NewFunc;
@@ -59,7 +77,3 @@ void FunctionDuplicater::RenameMain(){
   RawToFPMap[Main]->takeName(Main);
   Main->setName("oldmain");
 }
-
-  //std::set<Function *> RawFunctions;
-  //std::set<Function *> FPFunctions;
-  //std::map<Function *, Function *> RawToFPMap;

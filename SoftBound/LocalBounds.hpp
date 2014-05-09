@@ -9,10 +9,15 @@ using namespace llvm;
 class LocalBounds{
 public:
   LocalBounds(FunctionDuplicater *FD);
+  Value *GetLowerBound(Value *V);
+  Value *GetUpperBound(Value *V);
+
+  Value *GetDef(Value *V);
+private:
   std::map<Value *, Value *> LowerBounds;
   std::map<Value *, Value *> UpperBounds;
-private:
   void CreateBounds(FunctionDuplicater *FD);
   void CreateBound(AllocaInst *A);
+  void CreateBound(CallInst *C);
 };
 #endif

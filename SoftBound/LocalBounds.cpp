@@ -1,7 +1,9 @@
 #include "LocalBounds.hpp"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/IRBuilder.h"
+#include "llvm/IR/Instruction.h"
 #include "llvm/Support/InstIterator.h"
+#include "llvm/Support/raw_ostream.h"
 
 LocalBounds::LocalBounds(FunctionDuplicater *FD){
   CreateBounds(FD);
@@ -15,6 +17,10 @@ void LocalBounds::CreateBounds(FunctionDuplicater *FD){
         if(A->getType()->getPointerElementType()->isPointerTy())
           CreateBound(A);
       }
+      if(auto C = dyn_cast<CallInst>(I)){
+        if(C->getType()->isPointerTy())
+          CreateBound(C);
+      }
     }
   }
 }
@@ -26,6 +32,75 @@ void LocalBounds::CreateBound(AllocaInst *A){
 
   Value *Null = ConstantPointerNull::get(
       cast<PointerType>(A->getType()->getPointerElementType()));
+  // Set the bounds to null, unless the alloca is a function parameter
+  // in which case set the bounds to the next two arguments
+  for(auto i = A->use_begin(), e = A->use_end(); i != e; ++i){
+    Instruction *I = dyn_cast<Instruction>(*i);
+    if(auto S = dyn_cast<StoreInst>(I)){
+      if(auto Arg = dyn_cast<Argument>(S->getValueOperand())){
+        Function *F = Arg->getParent();
+        int ArgNo = Arg->getArgNo();
+
+        auto ArgIter = F->arg_begin();
+        while(ArgNo--) ArgIter++;
+        ArgIter++;
+        Value *L = ArgIter++;
+        Value *U = ArgIter++;
+
+        B.CreateStore(L, LowerBounds[A]);
+        B.CreateStore(U, UpperBounds[A]);
+        return;
+      }
+    }
+  }
   B.CreateStore(Null, LowerBounds[A]);
   B.CreateStore(Null, UpperBounds[A]);
+}
+
+void LocalBounds::CreateBound(CallInst *C){
+  IRBuilder<> B(C);
+  LowerBounds[C] = B.CreateAlloca(C->getType());
+  UpperBounds[C] = B.CreateAlloca(C->getType());
+
+  Value *Null = ConstantPointerNull::get(cast<PointerType>(C->getType()));
+  B.CreateStore(Null, LowerBounds[C]);
+  B.CreateStore(Null, UpperBounds[C]);
+}
+
+Value *LocalBounds::GetDef(Value *V){
+  bool OneLoad = true;
+  while(true){
+    if(isa<CallInst>(V) || isa<AllocaInst>(V))
+      break;
+    else if(auto G = dyn_cast<GetElementPtrInst>(V))
+      V = G->getPointerOperand();
+    else if(auto C = dyn_cast<CastInst>(V))
+      V = C->getOperand(0);
+    else if(auto L = dyn_cast<LoadInst>(V)){
+      if(OneLoad){
+        V = L->getPointerOperand();
+        OneLoad = false;
+      } else {
+        V = L;
+        break;
+      }
+    }
+  }
+  return V;
+}
+Value *LocalBounds::GetLowerBound(Value *V){
+  V = GetDef(V);
+  if(!LowerBounds.count(V)){
+    errs() << "Could not find: " << *V << "\n";
+    errs() << "Contents:\n";
+    for(auto Pair: LowerBounds)
+      errs() << "\t" << *Pair.first << "\n";
+    assert(false && "Could not find lower bound");
+  }
+  return LowerBounds[V];
+}
+Value *LocalBounds::GetUpperBound(Value *V){
+  V = GetDef(V);
+  assert(UpperBounds.count(V));
+  return UpperBounds[V];
 }
