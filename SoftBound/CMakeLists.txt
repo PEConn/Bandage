@@ -5,4 +5,8 @@ add_llvm_loadable_module(SoftBound
   FunctionDuplicater.cpp
   PointerReturn.cpp
   CallModifier.cpp
+  BoundsSetter.cpp
+  HeapBounds.cpp
+  ../Basic/Helpers.cpp
+  ../Basic/ArrayAccessTransform.cpp
   )

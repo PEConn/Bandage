@@ -64,4 +64,6 @@ Value *ConvertFatPointerToRawPointer(Value *FatPointer, IRBuilder<> B);
 bool IsStoreValueOperand(StoreInst *S, Value *V);
 bool IsStorePointerOperand(StoreInst *S, Value *V);
 bool IsGepPointerOperand(GetElementPtrInst *G, Value *V);
+
+Function *CreatePrintFunction(Module &M);
 #endif

@@ -13,9 +13,13 @@
 #include "llvm/Support/InstIterator.h"
 
 #include "LocalBounds.hpp"
+#include "BoundsSetter.hpp"
+#include "HeapBounds.hpp"
 #include "BoundsChecks.hpp"
 #include "FunctionDuplicater.hpp"
 #include "CallModifier.hpp"
+#include "../Basic/ArrayAccessTransform.hpp"
+#include "../Basic/Helpers.hpp"
 
 using namespace llvm;
 
@@ -26,10 +30,19 @@ struct SoftBound : public ModulePass{
 
   virtual bool runOnModule(Module &M) {
     auto FD = new FunctionDuplicater(M);
+    auto BS = new BoundsSetter(FD->FPFunctions);
     auto LB = new LocalBounds(FD);
-    auto CM = new CallModifier(FD, LB);
+    auto HB = new HeapBounds();
     auto BC = new BoundsChecks(LB, FD);
+    BC->CreateBoundsCheckFunction(M, M.getFunction("printf"));
+    BC->CreateBoundsChecks();
+    auto CM = new CallModifier(FD, LB);
 
+    BS->SetBounds(LB, HB);
+
+    auto AAT = new ArrayAccessTransform(FD->FPFunctions, CreatePrintFunction(M));
+
+    delete AAT;
     delete BC;
     delete CM;
     delete LB;

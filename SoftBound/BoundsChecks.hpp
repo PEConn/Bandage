@@ -8,10 +8,12 @@ using namespace llvm;
 class BoundsChecks{
 public:
   BoundsChecks(LocalBounds *LB, FunctionDuplicater *FD);
+  void CreateBoundsCheckFunction(Module &M, Function *Print);
+  void CreateBoundsChecks();
 private:
   LocalBounds *LB;
   FunctionDuplicater *FD;
-  void CreateBoundsChecks();
+  Function *BoundsCheck;
   void CreateBoundsCheck(LoadInst *L);
 };
 #endif

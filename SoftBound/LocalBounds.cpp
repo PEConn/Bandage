@@ -84,12 +84,22 @@ Value *LocalBounds::GetDef(Value *V){
         V = L;
         break;
       }
+    } else {
+      errs() << "Don't know how to follow :\n\t";
+      errs() << *V << "\n";
+      return NULL;
     }
+
   }
   return V;
 }
+bool LocalBounds::HasBoundsFor(Value *V){
+  V = GetDef(V);
+  return LowerBounds.count(V);
+}
 Value *LocalBounds::GetLowerBound(Value *V){
   V = GetDef(V);
+  if(V == NULL) return NULL;
   if(!LowerBounds.count(V)){
     errs() << "Could not find: " << *V << "\n";
     errs() << "Contents:\n";
@@ -101,6 +111,7 @@ Value *LocalBounds::GetLowerBound(Value *V){
 }
 Value *LocalBounds::GetUpperBound(Value *V){
   V = GetDef(V);
+  if(V == NULL) return NULL;
   assert(UpperBounds.count(V));
   return UpperBounds[V];
 }

@@ -11,6 +11,7 @@ public:
   LocalBounds(FunctionDuplicater *FD);
   Value *GetLowerBound(Value *V);
   Value *GetUpperBound(Value *V);
+  bool HasBoundsFor(Value *V);
 
   Value *GetDef(Value *V);
 private:

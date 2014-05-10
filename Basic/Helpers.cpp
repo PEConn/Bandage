@@ -224,3 +224,17 @@ bool IsStorePointerOperand(StoreInst *S, Value *V){
 bool IsGepPointerOperand(GetElementPtrInst *G, Value *V){
   return G->getPointerOperand() == V;
 }
+
+Function *CreatePrintFunction(Module &M){
+  auto FT = FunctionType::get(Type::getVoidTy(M.getContext()), false);
+  Function *YellOutOfBounds = Function::Create(FT, 
+      GlobalValue::LinkageTypes::ExternalLinkage, "OnError", &M);
+  BasicBlock *BB = BasicBlock::Create(M.getContext(), "OnError", YellOutOfBounds);
+
+  IRBuilder<> B(BB);
+  Function *Print = M.getFunction("printf");
+  if(Print)
+    B.CreateCall(Print, Str(B, "OutOfBounds"));
+  B.CreateRetVoid();
+  return YellOutOfBounds;
+}

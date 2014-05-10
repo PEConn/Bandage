@@ -1,14 +1,9 @@
 #include "PointerReturn.hpp"
 #include "llvm/Support/raw_ostream.h"
 
-std::map<Type *, Type *> PointerReturn::PointerReturns;
+#include "../Basic/Helpers.hpp"
 
-std::vector<Value *> GetIndices(int val, LLVMContext& C){
-  std::vector<Value *> Idxs;
-  Idxs.push_back(ConstantInt::get(IntegerType::getInt32Ty(C), 0));
-  Idxs.push_back(ConstantInt::get(IntegerType::getInt32Ty(C), val));
-  return Idxs;
-}
+std::map<Type *, Type *> PointerReturn::PointerReturns;
 
 Type *PointerReturn::GetPointerReturnType(Type *T){
   errs() << "Creating Pointer Return for: " << *T << "\n";
