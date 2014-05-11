@@ -50,8 +50,8 @@ void BoundsSetter::SetBounds(LocalBounds *LB, HeapBounds *HB){
       B.SetInsertPoint(S);
       HB->InsertTableAssign(B, 
           B.CreatePointerCast(S->getValueOperand(), PtrTy), 
-          B.CreatePointerCast(ToStoreInLower, PtrPtrTy), 
-          B.CreatePointerCast(ToStoreInUpper, PtrPtrTy));
+          B.CreatePointerCast(ToStoreInLower, PtrTy), 
+          B.CreatePointerCast(ToStoreInUpper, PtrTy));
     }
   }
 }
