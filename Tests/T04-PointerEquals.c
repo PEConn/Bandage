@@ -10,22 +10,22 @@ int main(){
 
   x = malloc(sizeof(int ***));
 
-  *x = y;   // CHECK: (x, 1) set to (y, 0)
-  *y = z;   // CHECK: (y, 1) set to (z, 0)
-  z = **x;  // CHECK: (z, 0) set to (x, 2)
+  *x = y;   
+  *y = z;   
+  z = **x;  
 
   int p = 123;
   y = (int **)p;
 
   int *a;
   int *b;
-  a = b;    // CHECK: (a, 0) set to (b, 0)
-  *a = *b;  // CHECK: (a, 1) set to (b, 1)
+  a = b;    
+  *a = *b;  
 
   int *c;
   int d;
-  *c = d;   // CHECK: (c, 1) set to (d, 0)
-  c = &d;   // CHECK: (c, 0) set to (d, -1)
+  *c = d;  
+  c = &d;  
 
 	return 0;
 }

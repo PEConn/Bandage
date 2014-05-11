@@ -12,15 +12,15 @@ int main(){
 
 
   x[0] = 1;
-  x[1] = 1;
+  x[1] = 2;
 
-  printf("%d\n", x[0]);
+  printf("%d\n", x[1]);
 
   printf("Dirty\n");
   // CHECK-NOT: OutOfBounds
   // CHECK: Dirty
 
-  x[2] = 1;
+  x[2] = 3;
   // CHECK: OutOfBounds
 
   printf("Finished\n");

@@ -9,8 +9,8 @@ int ComputeEditDistance(const char *w1, const int s1, const char *w2, const int 
   // The i'th cell across and j'th cell down is given by:
   //   grid[j*s1 + i]
 
-  for(int i=0; i<s1; i++) grid[i] = i;
-  for(int j=0; j<s2; j++) grid[j * s1] = j;
+  for(int i0=0; i0<s1; i0++) grid[i0] = i0;
+  for(int j0=0; j0<s2; j0++) grid[j0 * s1] = j0;
 
   for(int j=1; j<s2; j++){
     for(int i=1; i<s1; i++){
@@ -24,7 +24,9 @@ int ComputeEditDistance(const char *w1, const int s1, const char *w2, const int 
       if(w1[i] != w2[j]) min++;
 
       grid[j*s1 + i] = min;
+      printf("%d ", min);
     }
+    printf("\n");
   }
 
   // Out of Bounds error here!
