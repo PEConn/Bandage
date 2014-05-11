@@ -14,6 +14,6 @@ private:
   LocalBounds *LB;
   FunctionDuplicater *FD;
   Function *BoundsCheck;
-  void CreateBoundsCheck(LoadInst *L);
+  void CreateBoundsCheck(Instruction *I, Value *PointerOperand);
 };
 #endif

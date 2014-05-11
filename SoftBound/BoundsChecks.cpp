@@ -21,20 +21,33 @@ void BoundsChecks::CreateBoundsChecks(){
     for(auto II = inst_begin(F), EI = inst_end(F); II != EI; ++II){
       Instruction *I = &*II;
       if(auto L = dyn_cast<LoadInst>(I)){
-        if(L->getPointerOperand()->getType()->getPointerElementType()->isPointerTy())
-          CreateBoundsCheck(L);
+        if(!isa<AllocaInst>(L->getPointerOperand()))
+        //if(L->getPointerOperand()->getType()->getPointerElementType()->isPointerTy())
+          CreateBoundsCheck(L, L->getPointerOperand());
+      }
+      if(auto S = dyn_cast<StoreInst>(I)){
+        if(!isa<AllocaInst>(S->getPointerOperand()))
+          CreateBoundsCheck(S, S->getPointerOperand());
+
       }
     }
   }
 }
 
-void BoundsChecks::CreateBoundsCheck(LoadInst *L){
-  IRBuilder<> B(L);
-  Type *PtrTy = Type::getInt8PtrTy(L->getContext());
+void BoundsChecks::CreateBoundsCheck(Instruction *I, Value *PointerOperand){
+  IRBuilder<> B(I);
+  Type *PtrTy = Type::getInt8PtrTy(I->getContext());
+  if(!LB->HasBoundsFor(PointerOperand)){
+    errs() << "Could not find bounds for :" << *PointerOperand << "\n";
+    return;
+  }
+  //errs() << "Pointer: " << *L->getPointerOperand() << "\n";
+  //errs() << "LowerBound: " << *LB->GetLowerBound(L->getPointerOperand()) << "\n";
+  //errs() << "UpperBound: " << *LB->GetUpperBound(L->getPointerOperand()) << "\n";
   B.CreateCall3(BoundsCheck, 
-      B.CreatePointerCast(B.CreateLoad(L->getPointerOperand()), PtrTy), 
-      B.CreatePointerCast(B.CreateLoad(LB->GetLowerBound(L)), PtrTy),
-      B.CreatePointerCast(B.CreateLoad(LB->GetUpperBound(L)), PtrTy));
+      B.CreatePointerCast(PointerOperand, PtrTy), 
+      B.CreatePointerCast(B.CreateLoad(LB->GetLowerBound(PointerOperand)), PtrTy),
+      B.CreatePointerCast(B.CreateLoad(LB->GetUpperBound(PointerOperand)), PtrTy));
   //errs() << "TODO: Create bounds check for " << *L << "\n";
 }
 
