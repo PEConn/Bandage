@@ -67,8 +67,8 @@ void LocalBounds::CreateBound(CallInst *C){
   B.CreateStore(Null, UpperBounds[C]);
 }
 
-Value *LocalBounds::GetDef(Value *V){
-  bool OneLoad = true;
+Value *LocalBounds::GetDef(Value *V, bool IgnoreOneLoad){
+  bool OneLoad = IgnoreOneLoad;
   while(true){
     if(isa<CallInst>(V) || isa<AllocaInst>(V))
       break;
@@ -93,12 +93,12 @@ Value *LocalBounds::GetDef(Value *V){
   }
   return V;
 }
-bool LocalBounds::HasBoundsFor(Value *V){
-  V = GetDef(V);
+bool LocalBounds::HasBoundsFor(Value *V, bool IgnoreOneLoad){
+  V = GetDef(V, IgnoreOneLoad);
   return LowerBounds.count(V);
 }
-Value *LocalBounds::GetLowerBound(Value *V){
-  V = GetDef(V);
+Value *LocalBounds::GetLowerBound(Value *V, bool IgnoreOneLoad){
+  V = GetDef(V, IgnoreOneLoad);
   if(V == NULL) return NULL;
   if(!LowerBounds.count(V)){
     errs() << "Could not find: " << *V << "\n";
@@ -109,8 +109,8 @@ Value *LocalBounds::GetLowerBound(Value *V){
   }
   return LowerBounds[V];
 }
-Value *LocalBounds::GetUpperBound(Value *V){
-  V = GetDef(V);
+Value *LocalBounds::GetUpperBound(Value *V, bool IgnoreOneLoad){
+  V = GetDef(V, IgnoreOneLoad);
   if(V == NULL) return NULL;
   assert(UpperBounds.count(V));
   return UpperBounds[V];

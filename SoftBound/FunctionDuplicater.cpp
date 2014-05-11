@@ -9,6 +9,13 @@ FunctionDuplicater::FunctionDuplicater(Module &M){
     if(F->empty())
       continue;
 
+    // Horrible hack to avoid modifying heap bounds lookup functions
+    if(F->getName() == "TableSetup"
+        || F->getName() == "TableTeardown"
+        || F->getName() == "TableLookup"
+        || F->getName() == "TableAssign")
+      continue;
+
     if(F->getName() == "main")
       Main = F;
 

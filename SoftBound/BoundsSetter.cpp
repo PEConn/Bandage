@@ -22,17 +22,41 @@ void BoundsSetter::CollectStores(std::set<Function *> Functions){
 }
 void BoundsSetter::SetBounds(LocalBounds *LB, HeapBounds *HB){
   for(auto S: Stores){
+    Type *PtrTy = Type::getInt8PtrTy(S->getContext());
+    Type *PtrPtrTy = PtrTy->getPointerTo();
     Value *Pointer = S->getPointerOperand();
-    Value *Lower = LB->GetLowerBound(Pointer);
-    Value *Upper = LB->GetUpperBound(Pointer);
+    Value *ToStoreInLower = NULL;
+    Value *ToStoreInUpper = NULL;
+    IRBuilder<> B(S);
 
-    if(SetOnMalloc(S, Lower, Upper)) continue;
-    if(SetOnConstString(S, Lower, Upper)) continue;
-    if(SetOnPointerEquals(S, Lower, Upper, LB)) continue;
+    if(SetOnMalloc(B, S, ToStoreInLower, ToStoreInUpper))
+      ;
+    else if(SetOnConstString(B, S, ToStoreInLower, ToStoreInUpper))
+      ;
+    else if(SetOnPointerEquals(B, S, ToStoreInLower, ToStoreInUpper, LB))
+      ;
+
+    if(ToStoreInLower == NULL){
+      errs() << "Could not store bounds on: " << *S << "\n";
+      continue;
+    }
+
+    if(LB->HasBoundsFor(Pointer, false)){
+      Value *Lower = LB->GetLowerBound(Pointer, false);
+      B.CreateStore(ToStoreInLower, Lower);
+      Value *Upper = LB->GetUpperBound(Pointer, false);
+      B.CreateStore(ToStoreInUpper, Upper);
+    } else {
+      B.SetInsertPoint(S);
+      HB->InsertTableAssign(B, 
+          B.CreatePointerCast(S->getValueOperand(), PtrTy), 
+          B.CreatePointerCast(ToStoreInLower, PtrPtrTy), 
+          B.CreatePointerCast(ToStoreInUpper, PtrPtrTy));
+    }
   }
 }
 
-bool BoundsSetter::SetOnMalloc(StoreInst *S, Value *Lower, Value *Upper){
+bool BoundsSetter::SetOnMalloc(IRBuilder<> &B, StoreInst *S, Value *&StoreToLower, Value *&StoreToUpper){
   // Follow through the bitcast if there is one
   Value *V = S->getValueOperand();
   if(auto B = dyn_cast<CastInst>(V))
@@ -44,20 +68,20 @@ bool BoundsSetter::SetOnMalloc(StoreInst *S, Value *Lower, Value *Upper){
   // Set bounds here
   BasicBlock::iterator iter = C;
   iter++;
-  IRBuilder<> B(iter);
+  B.SetInsertPoint(iter);
 
   Type *IntTy = IntegerType::getInt64Ty(C->getContext());
-  Type *PtrTy = Lower->getType()->getPointerElementType();
-  B.CreateStore(B.CreatePointerCast(C, PtrTy), Lower);
-  B.CreateStore(B.CreateIntToPtr(
+  Type *PtrTy = S->getPointerOperand()->getType()->getPointerElementType();
+  StoreToLower = (B.CreatePointerCast(C, PtrTy));
+  StoreToUpper = (B.CreateIntToPtr(
         B.CreateAdd(C->getArgOperand(0),
           B.CreatePtrToInt(C, IntTy)),
-        PtrTy), Upper);
+        PtrTy));
 
   return true;
 }
 
-bool BoundsSetter::SetOnConstString(StoreInst *S, Value *Lower, Value *Upper){
+bool BoundsSetter::SetOnConstString(IRBuilder<> &B, StoreInst *S, Value *&StoreToLower, Value *&StoreToUpper){
   Value *V = S->getValueOperand();
   auto G = dyn_cast<GEPOperator>(S->getValueOperand());
   if(!G) return false;
@@ -66,28 +90,28 @@ bool BoundsSetter::SetOnConstString(StoreInst *S, Value *Lower, Value *Upper){
 
   BasicBlock::iterator iter = S;
   iter++;
-  IRBuilder<> B(iter);
+  B.SetInsertPoint(iter);
 
   Type *IntTy = IntegerType::getInt64Ty(C->getContext());
-  Type *PtrTy = Lower->getType()->getPointerElementType();
+  Type *PtrTy = S->getPointerOperand()->getType()->getPointerElementType();
   int LengthOfString = G->getPointerOperand()->getType()->getPointerElementType()->getVectorNumElements();
   Value *Length = ConstantInt::get(IntTy, LengthOfString);
 
-  B.CreateStore(G, Lower);
-  B.CreateStore(B.CreateIntToPtr(B.CreateAdd(
-          B.CreatePtrToInt(G, IntTy), Length), PtrTy), Upper);
+  StoreToLower = (G);
+  StoreToUpper = (B.CreateIntToPtr(B.CreateAdd(
+          B.CreatePtrToInt(G, IntTy), Length), PtrTy));
   return true;
 }
 
-bool BoundsSetter::SetOnPointerEquals(StoreInst *S, Value *Lower, Value *Upper, LocalBounds *LB){
+bool BoundsSetter::SetOnPointerEquals(IRBuilder<> &B, StoreInst *S, Value *&StoreToLower, Value *&StoreToUpper, LocalBounds *LB){
   Value *V = S->getValueOperand();
   if(!V->getType()->isPointerTy()) return false;
   if(!LB->HasBoundsFor(V)) return false;
   BasicBlock::iterator iter = S;
   iter++;
-  IRBuilder<> B(iter);
+  B.SetInsertPoint(iter);
 
-  B.CreateStore(B.CreateLoad(LB->GetLowerBound(V)), Lower);
-  B.CreateStore(B.CreateLoad(LB->GetUpperBound(V)), Upper);
+  StoreToLower = B.CreateLoad(LB->GetLowerBound(V));
+  StoreToUpper = B.CreateLoad(LB->GetUpperBound(V));
   return true;
 }

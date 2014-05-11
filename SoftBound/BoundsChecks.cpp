@@ -6,9 +6,10 @@
 
 #include "../Basic/Helpers.hpp"
 
-BoundsChecks::BoundsChecks(LocalBounds *LB, FunctionDuplicater *FD){
+BoundsChecks::BoundsChecks(LocalBounds *LB, HeapBounds *HB, FunctionDuplicater *FD){
   this->LB = LB;
   this->FD = FD;
+  this->HB = HB;
   this->BoundsCheck = NULL;
 }
 
@@ -20,35 +21,43 @@ void BoundsChecks::CreateBoundsChecks(){
   for(auto F: FD->FPFunctions){
     for(auto II = inst_begin(F), EI = inst_end(F); II != EI; ++II){
       Instruction *I = &*II;
-      if(auto L = dyn_cast<LoadInst>(I)){
+      if(auto L = dyn_cast<LoadInst>(I))
         if(!isa<AllocaInst>(L->getPointerOperand()))
-        //if(L->getPointerOperand()->getType()->getPointerElementType()->isPointerTy())
           CreateBoundsCheck(L, L->getPointerOperand());
-      }
-      if(auto S = dyn_cast<StoreInst>(I)){
+      if(auto S = dyn_cast<StoreInst>(I))
         if(!isa<AllocaInst>(S->getPointerOperand()))
           CreateBoundsCheck(S, S->getPointerOperand());
-
-      }
     }
   }
 }
 
 void BoundsChecks::CreateBoundsCheck(Instruction *I, Value *PointerOperand){
-  IRBuilder<> B(I);
   Type *PtrTy = Type::getInt8PtrTy(I->getContext());
-  if(!LB->HasBoundsFor(PointerOperand)){
+  Type *PtrPtrTy = PtrTy->getPointerTo();
+  if(LB->HasBoundsFor(PointerOperand)){
+    IRBuilder<> B(I);
+    B.CreateCall3(BoundsCheck, 
+        B.CreatePointerCast(PointerOperand, PtrTy), 
+        B.CreatePointerCast(B.CreateLoad(LB->GetLowerBound(PointerOperand)), PtrTy),
+        B.CreatePointerCast(B.CreateLoad(LB->GetUpperBound(PointerOperand)), PtrTy));
+  } else if (isa<LoadInst>(LB->GetDef(PointerOperand))){
+    errs() << "Heap Bounds: " << *I << "\n";
+    IRBuilder<> B(I);
+    Value *LowerBound = B.CreateAlloca(PtrTy);
+    Value *UpperBound = B.CreateAlloca(PtrTy);
+
+    HB->InsertTableLookup(B, 
+        B.CreatePointerCast(PointerOperand, PtrTy), 
+        B.CreatePointerCast(LowerBound, PtrPtrTy), 
+        B.CreatePointerCast(UpperBound, PtrPtrTy));
+
+    B.CreateCall3(BoundsCheck,
+        B.CreatePointerCast(PointerOperand, PtrTy),
+        B.CreateLoad(LowerBound),
+        B.CreateLoad(UpperBound));
+  } else {
     errs() << "Could not find bounds for :" << *PointerOperand << "\n";
-    return;
   }
-  //errs() << "Pointer: " << *L->getPointerOperand() << "\n";
-  //errs() << "LowerBound: " << *LB->GetLowerBound(L->getPointerOperand()) << "\n";
-  //errs() << "UpperBound: " << *LB->GetUpperBound(L->getPointerOperand()) << "\n";
-  B.CreateCall3(BoundsCheck, 
-      B.CreatePointerCast(PointerOperand, PtrTy), 
-      B.CreatePointerCast(B.CreateLoad(LB->GetLowerBound(PointerOperand)), PtrTy),
-      B.CreatePointerCast(B.CreateLoad(LB->GetUpperBound(PointerOperand)), PtrTy));
-  //errs() << "TODO: Create bounds check for " << *L << "\n";
 }
 
 void BoundsChecks::CreateBoundsCheckFunction(Module &M, Function *Print){
@@ -82,7 +91,7 @@ void BoundsChecks::CreateBoundsCheckFunction(Module &M, Function *Print){
       "NullCheck", BoundsCheckFunc);
   IRBuilder<> B(NullCheckBB);
 
-  if(false && Print){
+  if(Print){
     B.CreateCall2(Print, Str(B, "Base:  %p"), Base);
     B.CreateCall2(Print, Str(B, "Value: %p"), Val);
     B.CreateCall2(Print, Str(B, "Bound: %p"), Bound);

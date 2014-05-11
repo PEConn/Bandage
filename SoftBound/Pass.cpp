@@ -32,8 +32,8 @@ struct SoftBound : public ModulePass{
     auto FD = new FunctionDuplicater(M);
     auto BS = new BoundsSetter(FD->FPFunctions);
     auto LB = new LocalBounds(FD);
-    auto HB = new HeapBounds();
-    auto BC = new BoundsChecks(LB, FD);
+    auto HB = new HeapBounds(M);
+    auto BC = new BoundsChecks(LB, HB, FD);
     BC->CreateBoundsCheckFunction(M, M.getFunction("printf"));
     BC->CreateBoundsChecks();
     auto CM = new CallModifier(FD, LB);

@@ -16,12 +16,9 @@ public:
 private:
   std::set<StoreInst *> Stores;
   void CollectStores(std::set<Function *> Functions);
-  bool SetOnMalloc(StoreInst *S, Value *Lower, Value *Upper);
-  bool SetOnConstString(StoreInst *S, Value *Lower, Value *Upper);
-  bool SetOnPointerEquals(StoreInst *S, Value *Lower, Value *Upper, LocalBounds *LB);
-  //bool SetOnAddress(Value *ValueOperand, Value *UpperBound);
-  //bool SetOnConstString(Value *ValueOperand, Value *UpperBound);
-  //bool SetOnNull(Value *ValueOperand, Value *UpperBound);
+  bool SetOnMalloc(IRBuilder<> &B, StoreInst *S, Value *&StoreToLower, Value *&StoreToUpper);
+  bool SetOnConstString(IRBuilder<> &B, StoreInst *S, Value *&StoreToLower, Value *&StoreToUpper);
+  bool SetOnPointerEquals(IRBuilder<> &B, StoreInst *S, Value *&StoreToLower, Value *&StoreToUpper, LocalBounds *LB);
 };
 
 #endif
