@@ -35,6 +35,7 @@ namespace {
 
 cl::opt<bool> DontUseCCured("bandage-no-ccured", cl::desc("Suppresses the use of CCured analysis for the Bandage fat pointer transformation"));
 cl::opt<bool> DontInlineChecks("bandage-no-inline", cl::desc("Doesn't inline the bounds or null checks given by bandage"));
+cl::opt<std::string> FuncFile("funcfile", cl::desc("Specify input filename for function list"), cl::value_desc("filename for function list"));
 
 struct Bandage : public ModulePass{
   static char ID;
@@ -49,7 +50,7 @@ struct Bandage : public ModulePass{
     errs() << "Duplicating Types\n";
     auto *TD = new TypeDuplicater(M, &getAnalysis<FindUsedTypes>());
     errs() << "Duplicating Functions\n";
-    auto *FD = new FunctionDuplicater(M, TD);
+    auto *FD = new FunctionDuplicater(M, TD, FuncFile);
     errs() << "Collecting Pointer Uses\n";
     auto *PUC = new PointerUseCollection(FD, M);
     errs() << "Transforming Pointer Allocations\n";

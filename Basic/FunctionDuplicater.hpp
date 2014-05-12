@@ -3,6 +3,7 @@
 
 #include <set>
 #include <map>
+#include <string>
 #include "llvm/IR/Module.h"
 #include "FatPointers.hpp"
 #include "TypeDuplicater.hpp"
@@ -11,7 +12,7 @@ using namespace llvm;
 
 class FunctionDuplicater{
 public:
-  FunctionDuplicater(Module &M, TypeDuplicater *TD);
+  FunctionDuplicater(Module &M, TypeDuplicater *TD, std::string FuncFile="");
 
   std::set<Function *> GetRawFunctions();
   std::set<Function *> GetFPFunctions();

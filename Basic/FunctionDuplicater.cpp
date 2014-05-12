@@ -1,5 +1,7 @@
 #include "FunctionDuplicater.hpp"
 
+#include <string>
+#include <fstream>
 #include "llvm/Pass.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Function.h"
@@ -12,11 +14,25 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/InstIterator.h"
 
-FunctionDuplicater::FunctionDuplicater(Module &M, TypeDuplicater *TD){
+FunctionDuplicater::FunctionDuplicater(Module &M, TypeDuplicater *TD, std::string FuncFile){
+  // If we have a file of modifiable functions, use it
+  std::set<std::string> IntDecls;
+  if(FuncFile != ""){
+    std::ifstream File(FuncFile);
+    std::string Line;
+    while(std::getline(File, Line)){
+      IntDecls.insert(Line);
+    }
+    File.close();
+    for(auto s: IntDecls){
+      errs() << s << "\n";
+    }
+  }
+
   for(auto IF = M.begin(), EF = M.end(); IF != EF; ++IF){
     Function *F = &*IF;
     // Should this be changed to 'isDeclaration'?
-    if(F->empty())
+    if(F->empty() && !IntDecls.count(F->getName()))
       continue;
 
     if(F->getName() == "main")
@@ -57,22 +73,26 @@ void FunctionDuplicater::DuplicateFunctions(Module &M, TypeDuplicater *TD){
         GlobalValue::LinkageTypes::ExternalLinkage, 
         F->getName() + ".FP", &M);
 
-    for(auto OldArgI = F->arg_begin(), OldArgE = F->arg_end(),
-       NewArgI = NewFunc->arg_begin(), NewArgE = NewFunc->arg_end();
-       OldArgI != OldArgE; OldArgI++, NewArgI++){
-      VMap[OldArgI] = NewArgI;
+    if(!F->empty()){
+      for(auto OldArgI = F->arg_begin(), OldArgE = F->arg_end(),
+          NewArgI = NewFunc->arg_begin(), NewArgE = NewFunc->arg_end();
+          OldArgI != OldArgE; OldArgI++, NewArgI++){
+        VMap[OldArgI] = NewArgI;
+      }
+      SmallVector<ReturnInst *, 5> Returns;
+      CloneFunctionInto(NewFunc, F, VMap, true, Returns, "", 
+          NULL, TD, NULL);
     }
-    SmallVector<ReturnInst *, 5> Returns;
-    CloneFunctionInto(NewFunc, F, VMap, true, Returns, "", 
-        NULL, TD, NULL);
 
     FPFunctions.insert(NewFunc);
     RawToFPMap[F] = NewFunc;
   }
 }
 void FunctionDuplicater::RenameMain(){
-  RawToFPMap[Main]->takeName(Main);
-  Main->setName("oldmain");
+  if(Main){
+    RawToFPMap[Main]->takeName(Main);
+    Main->setName("oldmain");
+  }
 }
 
 std::set<Function *> FunctionDuplicater::GetRawFunctions(){
