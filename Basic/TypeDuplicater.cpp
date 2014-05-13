@@ -27,7 +27,7 @@ TypeDuplicater::TypeDuplicater(Module &M, FindUsedTypes *FUT, std::string FuncFi
 
   CreateSkeletonTypes();
   FillTypeBodies();
-  //DisplayFPTypes(new DataLayout(&M));
+  DisplayFPTypes(new DataLayout(&M));
 }
 
 void TypeDuplicater::RemoveNonLocalTypes(Module &M, std::set<std::string> IntDecls){
@@ -72,9 +72,9 @@ void TypeDuplicater::FillTypeBodies(){
       // Replace all pointers with fat pointers
       // Replace all types with their FP equivalent
       Type *Old = ST->getElementType(i);
-      bool WasPointer = false;
-      if(Old->isPointerTy()){
-        WasPointer = true;
+      int PointerLevels = 0;
+      while(Old->isPointerTy()){
+        PointerLevels++;
         Old = Old->getPointerElementType();
       }
 
@@ -82,8 +82,8 @@ void TypeDuplicater::FillTypeBodies(){
       if(auto OldAsST = dyn_cast<StructType>(Old))
         if(RawStructs.count(OldAsST))
           New = RawToFPMap[OldAsST]; 
-      
-      if(WasPointer)
+
+      while(PointerLevels--)
         New = FatPointers::GetFatPointerType(New->getPointerTo());
 
       FPStructElements.push_back(New);
