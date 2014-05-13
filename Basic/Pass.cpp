@@ -43,14 +43,52 @@ struct Bandage : public ModulePass{
 
   virtual bool runOnModule(Module &M) {
     FatPointers::Inline = !DontInlineChecks;
+    FatPointers::Declare = (M.getFunction("main") != NULL);
 
     errs() << "-------------------------------" << "\n";
     errs() << "Fat Pointer Transformation Pass" << "\n";
     errs() << "-------------------------------" << "\n";
     errs() << "Duplicating Types\n";
-    auto *TD = new TypeDuplicater(M, &getAnalysis<FindUsedTypes>());
+    auto *TD = new TypeDuplicater(M, &getAnalysis<FindUsedTypes>(), FuncFile);
     errs() << "Duplicating Functions\n";
     auto *FD = new FunctionDuplicater(M, TD, FuncFile);
+    errs() << "Has main: " << FatPointers::Declare << "\n";
+    Function *OnError;
+    if(FatPointers::Declare){
+      // Force creation of the bounds check function
+      Type *T = Type::getInt8PtrTy(M.getContext());
+      FatPointers::CreateBoundsCheckFunction(T, M.getFunction("printf"), &M);
+      OnError = CreatePrintFunction(M);
+
+      // If main takes argv**, put it into a fat pointer
+      /*
+      Note: This interacts with future transformations
+      Function *F = M.getFunction("main");
+      auto Arg = F->arg_begin();
+      auto ArgEnd = F->arg_end();
+      if(Arg != ArgEnd){
+        Arg++;
+        if(Arg != ArgEnd){
+          errs() << "Packing argv\n";
+          IRBuilder<> B(&F->front().front());
+          Value *ArgV = Arg;
+          Value *FP = FatPointers::CreateFatPointer(ArgV->getType(), B);
+          Value *IFP = FatPointers::CreateFatPointer(ArgV->getType()->getPointerElementType(), B);
+
+          ArgV->replaceAllUsesWith(FP);
+
+          Value *IFPVal = GetFatPointerValueAddr(IFP, B);
+          B.CreateStore(ArgV, IFPVal);
+          Value *FPVal = GetFatPointerValueAddr(FP, B);
+          B.CreateStore(B.CreateLoad(IFP), FPVal);
+        }
+      }
+      */
+
+    } else {
+      auto FT = FunctionType::get(Type::getVoidTy(M.getContext()), false);
+      OnError = Function::Create(FT, GlobalValue::LinkageTypes::ExternalLinkage, "OnError", &M);
+    }
     errs() << "Collecting Pointer Uses\n";
     auto *PUC = new PointerUseCollection(FD, M);
     errs() << "Transforming Pointer Allocations\n";
@@ -69,8 +107,7 @@ struct Bandage : public ModulePass{
     errs() << "    Checked Loads: " << T->SafeLoads << "\n";
     errs() << "-------------------------------" << "\n";
 
-    auto AAT = new ArrayAccessTransform(FD->GetFPFunctions(), 
-        CreatePrintFunction(M));
+    auto AAT = new ArrayAccessTransform(FD->GetFPFunctions(), OnError);
 
     delete AAT;
     delete T;

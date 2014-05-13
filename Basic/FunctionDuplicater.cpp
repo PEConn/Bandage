@@ -15,6 +15,7 @@
 #include "llvm/Support/InstIterator.h"
 
 FunctionDuplicater::FunctionDuplicater(Module &M, TypeDuplicater *TD, std::string FuncFile){
+  Main = NULL;
   // If we have a file of modifiable functions, use it
   std::set<std::string> IntDecls;
   if(FuncFile != ""){
@@ -24,9 +25,6 @@ FunctionDuplicater::FunctionDuplicater(Module &M, TypeDuplicater *TD, std::strin
       IntDecls.insert(Line);
     }
     File.close();
-    for(auto s: IntDecls){
-      errs() << s << "\n";
-    }
   }
 
   for(auto IF = M.begin(), EF = M.end(); IF != EF; ++IF){
@@ -66,7 +64,9 @@ void FunctionDuplicater::DuplicateFunctions(Module &M, TypeDuplicater *TD){
       ReturnType = ReturnType;
 
     // TODO: Copy over if the function type is VarArg
-    FunctionType *NewFuncType = FunctionType::get(ReturnType, Params, false);
+    FunctionType *NewFuncType = FunctionType::get(ReturnType, Params, F->isVarArg());
+
+    //errs() << *OldFuncType << " -> " << *NewFuncType << "\n";
 
     // Again, I'm not sure what linkage to use here
     Function *NewFunc = Function::Create(NewFuncType, 

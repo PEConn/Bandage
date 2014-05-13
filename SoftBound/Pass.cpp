@@ -11,6 +11,7 @@
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/InstIterator.h"
+#include "llvm/Support/CommandLine.h"
 
 #include "LocalBounds.hpp"
 #include "BoundsSetter.hpp"
@@ -24,12 +25,15 @@
 using namespace llvm;
 
 namespace {
+
+cl::opt<std::string> FuncFile("funcfile", cl::desc("Specify input filename for function list"), cl::value_desc("filename for function list"));
+
 struct SoftBound : public ModulePass{
   static char ID;
   SoftBound() : ModulePass(ID) {}
 
   virtual bool runOnModule(Module &M) {
-    auto FD = new FunctionDuplicater(M);
+    auto FD = new FunctionDuplicater(M, FuncFile);
     auto BS = new BoundsSetter(FD->FPFunctions);
     auto LB = new LocalBounds(FD);
     auto HB = new HeapBounds(M);

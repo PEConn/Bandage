@@ -12,6 +12,7 @@ using namespace llvm;
 class FatPointers{
 public:
   static bool Inline;
+  static bool Declare;
   static Value* CreateFatPointer(Type *PointerType, IRBuilder<> &B, std::string Name="");
   static ConstantPointerNull* GetFieldNull(Value *FatPointer);
   static StructType* GetFatPointerType(Type *PointerType);
@@ -21,12 +22,12 @@ public:
   static void CreateBoundsCheck(IRBuilder<> &B,
       Value *Val, Value *Base, Value *Bound, Function *Print, Module *M);
   static void CreateNullCheck(IRBuilder<> &B, Value *V, Function *Print, Module *M);
+  static void CreateBoundsCheckFunction(Type *PointerType, Function *Print, Module *M);
+  static void CreateNullCheckFunction(Type *PointerType, Function *Print, Module *M);
 private:
   static std::map<Type *, StructType *> FatPointerTypes;
   static std::map<Type *, Function *> BoundsChecks;
   static std::map<Type *, Function *> NullChecks;
-  static void CreateBoundsCheckFunction(Type *PointerType, Function *Print, Module *M);
-  static void CreateNullCheckFunction(Type *PointerType, Function *Print, Module *M);
 };
 
 #endif

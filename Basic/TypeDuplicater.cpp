@@ -1,29 +1,41 @@
 #include "TypeDuplicater.hpp"
 #include <stack>
+#include <fstream>
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/IR/Metadata.h"
 #include "FatPointers.hpp"
 
-TypeDuplicater::TypeDuplicater(Module &M, FindUsedTypes *FUT){
+TypeDuplicater::TypeDuplicater(Module &M, FindUsedTypes *FUT, std::string FuncFile){
+
+  std::set<std::string> IntDecls;
+  if(FuncFile != ""){
+    std::ifstream File(FuncFile);
+    std::string Line;
+    while(std::getline(File, Line)){
+      IntDecls.insert(Line);
+    }
+    File.close();
+  }
+
   for(auto T: FUT->getTypes()){
     if(T->isStructTy()){
       RawStructs.insert(cast<StructType>(T));
     }
   }
 
-  RemoveNonLocalTypes(M);
+  RemoveNonLocalTypes(M, IntDecls);
 
   CreateSkeletonTypes();
   FillTypeBodies();
   //DisplayFPTypes(new DataLayout(&M));
 }
 
-void TypeDuplicater::RemoveNonLocalTypes(Module &M){
+void TypeDuplicater::RemoveNonLocalTypes(Module &M, std::set<std::string> IntDecls){
   std::set<Function *> UndefinedFunctions;
   for(auto IF = M.begin(), EF = M.end(); IF != EF; ++IF){
     Function *F = &*IF;
 
-    if(F->isDeclaration())
+    if(F->isDeclaration() && !IntDecls.count(F->getName()))
       UndefinedFunctions.insert(F);
   }
 
@@ -88,9 +100,12 @@ bool TypeDuplicater::NeedsFPType(StructType *ST){
   return false;
 }
 void TypeDuplicater::DisplayFPTypes(DataLayout *DL){
+  errs() << "----------FPTypes----------\n";
   for(auto T: FPStructs){
-    errs() << DL->getTypeAllocSizeInBits(T)/8 << "B: " << *T << "\n";
+    //errs() << DL->getTypeAllocSizeInBits(T)/8 << "B: " << *T << "\n";
+    errs() << *T << "\n";
   }
+  errs() << "---------------------------\n";
 }
 
 Type *TypeDuplicater::remapType(Type *srcType){

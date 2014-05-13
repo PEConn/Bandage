@@ -1,3 +1,4 @@
+#include "llvm/Support/raw_ostream.h"
 #include "PointerAllocaTransform.hpp"
 #include <string>
 #include "llvm/IR/IRBuilder.h"
@@ -12,6 +13,7 @@ PointerAllocaTransform::PointerAllocaTransform(std::set<Function *> Functions){
 }
 void PointerAllocaTransform::CollectAllocas(std::set<Function *> Functions){
   for(auto F: Functions){
+    //errs() << "Transforming Allocas in " << F->getName() << "\n";
     for(auto II = inst_begin(F), EI = inst_end(F); II != EI; ++II){
       Instruction *I = &*II;
       if(AllocaInst *A = dyn_cast<AllocaInst>(I)){
@@ -25,6 +27,7 @@ void PointerAllocaTransform::CollectAllocas(std::set<Function *> Functions){
 }
 void PointerAllocaTransform::TransformAllocas(){
   for(auto PointerAlloc : Allocas){
+    //errs() << *PointerAlloc << " -> ";
     BasicBlock::iterator iter = PointerAlloc;
     iter++;
     IRBuilder<> B(iter);
@@ -33,6 +36,7 @@ void PointerAllocaTransform::TransformAllocas(){
     std::string Name = "FP." + PointerAlloc->getName().str();
     // Construct the type for the fat pointer
     Value *FatPointer = FatPointers::CreateFatPointer(PointerTy, B, Name);
+    //errs() << *FatPointer << "\n";
     RawToFPMap[PointerAlloc] = cast<AllocaInst>(FatPointer);
     PointerAlloc->replaceAllUsesWith(FatPointer);
 

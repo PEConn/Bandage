@@ -26,7 +26,7 @@ private:
   Function *Print;
   std::map<Function *, Function *> RawToFPMap;
   std::map<Pointer, CCuredPointerType> Qualifiers;
-  std::map<AllocaInst *, AllocaInst *> RawToFPAllocaMap;
+  //std::map<AllocaInst *, AllocaInst *> RawToFPAllocaMap;
   std::map<Value *, Value *> FPToRawVariableMap;
   std::map<Value *, Value *> Replacements;
 };

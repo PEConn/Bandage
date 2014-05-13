@@ -3,6 +3,7 @@
 
 #include <set>
 #include <map>
+#include <string>
 #include "llvm/IR/Module.h"
 #include "llvm/Analysis/FindUsedTypes.h"
 #include "llvm/Transforms/Utils/ValueMapper.h"
@@ -11,7 +12,7 @@ using namespace llvm;
 
 class TypeDuplicater : public ValueMapTypeRemapper{
 public:
-  TypeDuplicater(Module &M, FindUsedTypes *FUT);
+  TypeDuplicater(Module &M, FindUsedTypes *FUT, std::string FuncFile="");
 
   virtual Type *remapType(Type *srcType);
 
@@ -26,7 +27,7 @@ private:
   void CreateSkeletonTypes();
   void FillTypeBodies();
   void DisplayFPTypes(DataLayout *DL);
-  void RemoveNonLocalTypes(Module &M);
+  void RemoveNonLocalTypes(Module &M, std::set<std::string> IntDecls);
 
   std::set<StructType *> RawStructs;
   std::set<StructType *> FPStructs;

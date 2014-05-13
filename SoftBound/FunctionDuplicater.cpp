@@ -1,12 +1,25 @@
+#include <fstream>
 #include "FunctionDuplicater.hpp"
 #include "llvm/IR/Instructions.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 
-FunctionDuplicater::FunctionDuplicater(Module &M){
+FunctionDuplicater::FunctionDuplicater(Module &M, std::string FuncFile){
+  Main = NULL;
+  // If we have a file of modifiable functions, use it
+  std::set<std::string> IntDecls;
+  if(FuncFile != ""){
+    std::ifstream File(FuncFile);
+    std::string Line;
+    while(std::getline(File, Line)){
+      IntDecls.insert(Line);
+    }
+    File.close();
+  }
+
   PR = new PointerReturn();
   for(auto i = M.begin(), e = M.end(); i != e; ++i){
     Function *F = &*i;
-    if(F->empty())
+    if(F->empty() && !IntDecls.count(F->getName()))
       continue;
 
     // Horrible hack to avoid modifying heap bounds lookup functions
@@ -53,27 +66,29 @@ void FunctionDuplicater::DuplicateFunctions(Module &M){
         GlobalValue::LinkageTypes::ExternalLinkage,
         F->getName() + ".soft", &M);
 
-    ValueToValueMapTy VMap;
-    // Map the arguments
-    // The old function should have fewer or equal arguments than the new function
-    auto OldArgI = F->arg_begin();
-    auto OldArgE = F->arg_end();
-    auto NewArgI = NewFunc->arg_begin();
-    auto NewArgE = NewFunc->arg_end();
-    for(int i=0; i<OldFuncType->getNumParams(); i++){
-      VMap[OldArgI] = NewArgI;
-      auto *ParamType = OldFuncType->getParamType(i);
-      // Skip the base and bounds parameters
-      if(ParamType->isPointerTy()){
-        NewArgI++;
+    if(!F->empty()){
+      ValueToValueMapTy VMap;
+      // Map the arguments
+      // The old function should have fewer or equal arguments than the new function
+      auto OldArgI = F->arg_begin();
+      auto OldArgE = F->arg_end();
+      auto NewArgI = NewFunc->arg_begin();
+      auto NewArgE = NewFunc->arg_end();
+      for(int i=0; i<OldFuncType->getNumParams(); i++){
+        VMap[OldArgI] = NewArgI;
+        auto *ParamType = OldFuncType->getParamType(i);
+        // Skip the base and bounds parameters
+        if(ParamType->isPointerTy()){
+          NewArgI++;
+          NewArgI++;
+        }
+        OldArgI++;
         NewArgI++;
       }
-      OldArgI++;
-      NewArgI++;
+      SmallVector<ReturnInst *, 5> Returns;
+      CloneFunctionInto(NewFunc, F, VMap, true, Returns, "",
+          NULL, NULL, NULL);
     }
-    SmallVector<ReturnInst *, 5> Returns;
-    CloneFunctionInto(NewFunc, F, VMap, true, Returns, "",
-        NULL, NULL, NULL);
 
     FPFunctions.insert(NewFunc);
     RawToFPMap[F] = NewFunc;
@@ -81,6 +96,8 @@ void FunctionDuplicater::DuplicateFunctions(Module &M){
   }
 }
 void FunctionDuplicater::RenameMain(){
-  RawToFPMap[Main]->takeName(Main);
-  Main->setName("oldmain");
+  if(Main){
+    RawToFPMap[Main]->takeName(Main);
+    Main->setName("oldmain");
+  }
 }

@@ -3,6 +3,7 @@
 
 #include <map>
 #include <set>
+#include <string>
 #include "llvm/IR/Module.h"
 
 #include "PointerReturn.hpp"
@@ -11,7 +12,7 @@ using namespace llvm;
 
 class FunctionDuplicater{
 public:
-  FunctionDuplicater(Module &M);
+  FunctionDuplicater(Module &M, std::string FuncFile="");
   ~FunctionDuplicater();
 
   std::set<Function *> RawFunctions;

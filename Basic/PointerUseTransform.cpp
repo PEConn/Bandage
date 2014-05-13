@@ -10,7 +10,11 @@ PointerUseTransform::PointerUseTransform(PointerUseCollection *PUC, Module &M, s
   this->M = &M;
   this->Print = M.getFunction("printf");
   this->RawToFPMap = RawToFPMap;
-  this->RawToFPAllocaMap = RawToFPAllocaMap;
+  //this->RawToFPAllocaMap = RawToFPAllocaMap;
+
+  for(auto Pair: RawToFPAllocaMap){
+    Replacements[Pair.first] = Pair.second;
+  }
 
   this->SafeLoads = 0;
   this->NoneSafeLoads = 0;
@@ -94,7 +98,7 @@ void PointerUseTransform::RecreateValueChain(std::vector<Value *> Chain){
         LoadInst *ToReplace = B.CreateLoad(Null);
         C->replaceAllUsesWith(ToReplace);
 
-        if(C->getCalledFunction()->getName() == "malloc"){
+        if(C->getCalledFunction() && C->getCalledFunction()->getName() == "malloc"){
           // If the next instruction is a cast, delay creating a fat pointer
           PrevBase = C;
           PrevBound = B.CreateIntToPtr(B.CreateAdd(
@@ -121,13 +125,15 @@ void PointerUseTransform::RecreateValueChain(std::vector<Value *> Chain){
   // If the chain ends with a free instruction, set the base to null, signifying
   // unset after the call
   if(auto C = dyn_cast<CallInst>(Chain.back())){
-    if(C->getCalledFunction()->getName() == "free"){
-      BasicBlock::iterator iter = C;
-      iter++;
-      IRBuilder<> B(iter);
-      Value *FatPointer = RawToFPAllocaMap[cast<AllocaInst>(Chain.front())];
-      Value *Null = FatPointers::GetFieldNull(FatPointer);
-      StoreInFatPointerValue(FatPointer, Null, B);
+    if(C->getCalledFunction()){
+      if(C->getCalledFunction()->getName() == "free"){
+        BasicBlock::iterator iter = C;
+        iter++;
+        IRBuilder<> B(iter);
+        Value *FatPointer = Chain.front();
+        Value *Null = FatPointers::GetFieldNull(FatPointer);
+        StoreInFatPointerValue(FatPointer, Null, B);
+      }
     }
   }
 
@@ -153,11 +159,13 @@ void PointerUseTransform::RecreateValueChain(std::vector<Value *> Chain){
   // Set equal to null
   if(auto S = dyn_cast<StoreInst>(Chain.back())){
     if(auto C = dyn_cast<ConstantPointerNull>(S->getValueOperand())){
-      // Make a null of the correct type
-      IRBuilder<> B(S);
-      Value *Null = FatPointers::GetFieldNull(S->getPointerOperand());
-      StoreInFatPointerValue(S->getPointerOperand(), Null, B);
-      S->eraseFromParent();
+      if(FatPointers::IsFatPointerType(S->getPointerOperand()->getType()->getPointerElementType())){
+        // Make a null of the correct type
+        IRBuilder<> B(S);
+        Value *Null = FatPointers::GetFieldNull(S->getPointerOperand());
+        StoreInFatPointerValue(S->getPointerOperand(), Null, B);
+        S->eraseFromParent();
+      }
     }
   }
 
@@ -190,8 +198,8 @@ void PointerUseTransform::RecreateValueChain(std::vector<Value *> Chain){
   // Store this for later use for CCured optimisation
   Value *PointerId = NULL;
   if(auto V = dyn_cast<AllocaInst>(Chain.front()))
-    if(RawToFPAllocaMap.count(V))
-      PointerId = RawToFPAllocaMap[V];
+    if(Replacements.count(V))
+      PointerId = Replacements[V];
   int PointerLevel = 0;
 
   for(int i=0; i<Chain.size(); i++){
@@ -291,7 +299,7 @@ void PointerUseTransform::RecreateValueChain(std::vector<Value *> Chain){
       }
     } else if(auto C = dyn_cast<CastInst>(CurrentLink)){
       // This should be modified to convert between fat pointer types
-      if((i == Chain.size() - 2) && ExpectedFatPointer){
+      if((i == Chain.size() - 2) && ExpectedFatPointer && C->getDestTy()->isPointerTy()){
         IRBuilder<> B(C);
 
         Type *DestTy;
@@ -324,4 +332,6 @@ void PointerUseTransform::RecreateValueChain(std::vector<Value *> Chain){
       }
     }
   }
+
+
 }
