@@ -69,6 +69,10 @@ PU::PU(Value *V, Value *O){
     Chain.push_back(V);
     if(isa<CallInst>(V))
       break;
+    // Don't follow if we're the index to a GEP
+    if(auto G = dyn_cast<GetElementPtrInst>(V))
+      if(G->getPointerOperand() != Chain[Chain.size() - 2])
+        break;
   }
 }
 void PU::DispatchTransform(PointerUseTransform *T){

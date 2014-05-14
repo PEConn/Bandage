@@ -27,7 +27,7 @@ void PointerAllocaTransform::CollectAllocas(std::set<Function *> Functions){
 }
 void PointerAllocaTransform::TransformAllocas(){
   for(auto PointerAlloc : Allocas){
-    //errs() << *PointerAlloc << " -> ";
+    errs() << *PointerAlloc << " -> ";
     BasicBlock::iterator iter = PointerAlloc;
     iter++;
     IRBuilder<> B(iter);
@@ -36,7 +36,7 @@ void PointerAllocaTransform::TransformAllocas(){
     std::string Name = "FP." + PointerAlloc->getName().str();
     // Construct the type for the fat pointer
     Value *FatPointer = FatPointers::CreateFatPointer(PointerTy, B, Name);
-    //errs() << *FatPointer << "\n";
+    errs() << *FatPointer << "\n";
     RawToFPMap[PointerAlloc] = cast<AllocaInst>(FatPointer);
     PointerAlloc->replaceAllUsesWith(FatPointer);
 

@@ -72,7 +72,40 @@ void TypeDuplicater::FillTypeBodies(){
       // Replace all pointers with fat pointers
       // Replace all types with their FP equivalent
       Type *Old = ST->getElementType(i);
-      int PointerLevels = 0;
+      //Type *New = remapType(Old);
+      std::stack<int> Wrappers;
+      Type *ElementType = Old;
+      while(ElementType->isPointerTy() || ElementType->isArrayTy()){
+        if(ElementType->isPointerTy()){
+          Wrappers.push(0);
+          ElementType = ElementType->getPointerElementType();
+        } else {
+          Wrappers.push(ElementType->getArrayNumElements());
+          ElementType = ElementType->getArrayElementType();
+        }
+      }
+
+      // Check to see if we have a fat pointer version of the type
+      StructType *ST = dyn_cast<StructType>(ElementType);
+
+      Type *Ret = ElementType;
+      if(ST)
+        if(RawStructs.count(ST))
+          Ret = RawToFPMap[ST];
+
+      // Reapply any pointer or array levels
+      while(!Wrappers.empty()){
+        if(Wrappers.top() == 0)
+          Ret = FatPointers::GetFatPointerType(Ret->getPointerTo());
+        else
+          Ret = ArrayType::get(Ret, Wrappers.top());
+
+        Wrappers.pop();
+      }
+
+      Type *New = Ret;
+
+      /*int PointerLevels = 0;
       while(Old->isPointerTy()){
         PointerLevels++;
         Old = Old->getPointerElementType();
@@ -85,6 +118,7 @@ void TypeDuplicater::FillTypeBodies(){
 
       while(PointerLevels--)
         New = FatPointers::GetFatPointerType(New->getPointerTo());
+        */
 
       FPStructElements.push_back(New);
     }
@@ -135,6 +169,7 @@ Type *TypeDuplicater::remapType(Type *srcType){
   // Reapply any pointer or array levels
   while(!Wrappers.empty()){
     if(Wrappers.top() == 0)
+      //Ret = FatPointers::GetFatPointerType(Ret->getPointerTo());
       Ret = Ret->getPointerTo();
     else
       Ret = ArrayType::get(Ret, Wrappers.top());

@@ -27,21 +27,31 @@ ConstantPointerNull* FatPointers::GetFieldNull(Value *FatPointer){
   return Null;
 }
 StructType* FatPointers::GetFatPointerType(Type *PointerType){
+  //errs() << "Looking for " << PointerType << " " << *PointerType << "\n";
+  //for(auto T: FatPointerTypes)
+  //  errs() << "|    " << T.first << " " << *T.first << "\n";
   Type *OriginalPointerType = PointerType;
   if(FatPointers::FatPointerTypes.count(PointerType) == 1)
     return FatPointerTypes[PointerType];
   
+  //errs() << *PointerType << " ->\n\t";
+
   // Deal with nested pointers
   if(PointerType->getPointerElementType()->isPointerTy())
     PointerType = GetFatPointerType(
         PointerType->getPointerElementType())->getPointerTo();
+
+  if(FatPointers::FatPointerTypes.count(PointerType))
+    return FatPointerTypes[PointerType];
+
+
 
   std::vector<Type *> FatPointerMembers;	
   FatPointerMembers.push_back(PointerType);
   FatPointerMembers.push_back(PointerType);
   FatPointerMembers.push_back(PointerType);
 
-  std::string Name = "FatPointer";
+  std::string Name = "FatPointer.";
   // Give the struct a nice name - this assumes that structs are named
   // "struct.StructureName"
   if(StructType *ST = dyn_cast<StructType>(PointerType->getPointerElementType())){
@@ -51,7 +61,8 @@ StructType* FatPointers::GetFatPointerType(Type *PointerType){
   StructType *FatPointerType = StructType::create(FatPointerMembers, Name);
 
   FatPointers::FatPointerTypes[OriginalPointerType] = FatPointerType;
-  //errs() << *FatPointerType << "\n";
+  errs() << "Created: " <<  *FatPointerType << "\n";
+  errs() << "From: " << *OriginalPointerType << "\n";
   return FatPointerType;
 }
 

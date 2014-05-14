@@ -81,6 +81,8 @@ void PointerUseTransform::RecreateValueChain(std::vector<Value *> Chain){
       Chain[i] = Replacements[Chain[i]];
   }
 
+  //errs() << "---\n";
+
   // If the chain starts with a malloc instruction, calculate the base and bounds
   // for the future fat pointer
   // If the chain starts with a call from a non-fat-pointer function, 
@@ -118,6 +120,7 @@ void PointerUseTransform::RecreateValueChain(std::vector<Value *> Chain){
         } else
           ToReplace->replaceAllUsesWith(C);
         ToReplace->eraseFromParent();
+
       }
     }
   }
@@ -159,13 +162,45 @@ void PointerUseTransform::RecreateValueChain(std::vector<Value *> Chain){
   // Set equal to null
   if(auto S = dyn_cast<StoreInst>(Chain.back())){
     if(auto C = dyn_cast<ConstantPointerNull>(S->getValueOperand())){
-      if(FatPointers::IsFatPointerType(S->getPointerOperand()->getType()->getPointerElementType())){
+      Type *PointerElementType = S->getPointerOperand()->getType()->getPointerElementType();
+      /*errs() << "----------\n";
+      for(auto L: Chain)
+        errs() << *L << "\n";
+        */
+      IRBuilder<> B(S);
+      if(FatPointers::IsFatPointerType(PointerElementType)){
         // Make a null of the correct type
-        IRBuilder<> B(S);
         Value *Null = FatPointers::GetFieldNull(S->getPointerOperand());
         StoreInFatPointerValue(S->getPointerOperand(), Null, B);
         S->eraseFromParent();
+      } else if(PointerElementType->isPointerTy() && Chain.size() == 4
+          && isa<LoadInst>(Chain[1]) && isa<GetElementPtrInst>(Chain[2])){
+
+        // Recreate the load
+        auto *L = cast<LoadInst>(Chain[1]);
+        //auto *NewLoad = B.CreateLoad(L->getPointerOperand());
+        auto *NewLoad = LoadFatPointerValue(L->getPointerOperand(), B);
+        Replacements[L] = NewLoad;
+        L->replaceAllUsesWith(NewLoad);
+        L->eraseFromParent();
+
+        // Recreate the GEP
+        auto *G = cast<GetElementPtrInst>(Chain[2]);
+        std::vector<Value *> Indices;
+        for(auto I=G->idx_begin(), E=G->idx_end(); I != E; ++I)
+          Indices.push_back(*I);
+        auto *NewGep = B.CreateGEP(G->getPointerOperand(), Indices);
+        Replacements[G] = NewGep;
+        G->replaceAllUsesWith(NewGep);
+        G->eraseFromParent();
+
+        Value *Null = FatPointers::GetFieldNull(S->getPointerOperand());
+        StoreInFatPointerValue(S->getPointerOperand(), Null, B);
+        S->eraseFromParent();
+
       }
+
+      //errs() << "----------\n";
     }
   }
 
@@ -205,6 +240,9 @@ void PointerUseTransform::RecreateValueChain(std::vector<Value *> Chain){
   for(int i=0; i<Chain.size(); i++){
     //errs() << *Chain[i] << "\n";
     Value *CurrentLink = Chain[i];
+    if(auto I = dyn_cast<Instruction>(CurrentLink))
+      if(I->getParent() == NULL)
+        continue;
 
     if(auto L = dyn_cast<LoadInst>(CurrentLink)){
       IRBuilder<> B(L);
@@ -213,7 +251,8 @@ void PointerUseTransform::RecreateValueChain(std::vector<Value *> Chain){
       if(FatPointers::IsFatPointerType(Addr->getType()->getPointerElementType())){
         if((i == Chain.size() - 2) && ExpectedFatPointer){
           // Recreate the load for typing
-          L->replaceAllUsesWith(B.CreateLoad(Addr));
+          Replacements[L] = B.CreateLoad(Addr);
+          L->replaceAllUsesWith(Replacements[L]);
           L->eraseFromParent();
         } else {
           // Load the value from the fat pointer
@@ -261,7 +300,6 @@ void PointerUseTransform::RecreateValueChain(std::vector<Value *> Chain){
     } else if(auto G = dyn_cast<GetElementPtrInst>(CurrentLink)){
       IRBuilder<> B(G);
       if((i == Chain.size() - 2) && ExpectedFatPointer){
-        //errs() << "Gep: " << *G << "\n";
         // We expect a fat pointer, so create one from the GEP
         Value *Op = G->getPointerOperand();
 
@@ -284,11 +322,16 @@ void PointerUseTransform::RecreateValueChain(std::vector<Value *> Chain){
           Value *Size = GetSizeValue(Array, B);
           SetFatPointerBaseAndBound(FP, NewGep, Size, B);
         } else {
+          errs() << "----------\n";
+          for(auto L: Chain)
+            errs() << *L << "\n";
+          errs() << "----------\n";
           assert(false && "GEP without previous fat pointer to non-array");
         }
         G->replaceAllUsesWith(B.CreateLoad(FP));
         G->eraseFromParent();
       } else {
+        // Recreate the GEP for typing
         std::vector<Value *> Indices;
         for(auto I=G->idx_begin(), E=G->idx_end(); I != E; ++I)
           Indices.push_back(*I);
@@ -332,6 +375,4 @@ void PointerUseTransform::RecreateValueChain(std::vector<Value *> Chain){
       }
     }
   }
-
-
 }
