@@ -48,7 +48,15 @@ void PointerUseTransform::ApplyTo(PointerParameter *PP){
     // -- Collect the parameters
     std::vector<Value *> Args;
     for(int i=0; i<Call->getNumArgOperands(); i++){
-      Args.push_back(Call->getArgOperand(i));
+      // If NULL has been passed as a parameter, transform it
+      if(isa<ConstantPointerNull>(Call->getArgOperand(i))){
+        IRBuilder<> B(Call);
+        Value *FP = FatPointers::CreateFatPointer(
+            Call->getArgOperand(i)->getType(), B, "Null");
+        Args.push_back(B.CreateLoad(FP));
+      } else {
+        Args.push_back(Call->getArgOperand(i));
+      }
     }
 
     // -- Create the new function call
@@ -80,7 +88,6 @@ void PointerUseTransform::RecreateValueChain(std::vector<Value *> Chain){
     if(Replacements.count(Chain[i]))
       Chain[i] = Replacements[Chain[i]];
   }
-
   //errs() << "---\n";
 
   // If the chain starts with a malloc instruction, calculate the base and bounds
