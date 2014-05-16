@@ -15,9 +15,15 @@ bool HeapBounds::IsValid(){
 }
 void HeapBounds::InsertTableLookup(IRBuilder<> &B, Value *Key, Value *Base, Value *Bound){
   // Assumes that key, base and value are all i8*
+  if(!IsValid())
+    return;
+
   B.CreateCall3(Lookup, Key, Base, Bound);
 }
 void HeapBounds::InsertTableAssign(IRBuilder<> &B, Value *Key, Value *Base, Value *Bound){
   // Assumes that key, base and value are all i8*
+  if(!IsValid())
+    return;
+
   B.CreateCall3(Assign, Key, Base, Bound);
 }

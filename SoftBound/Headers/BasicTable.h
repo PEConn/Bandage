@@ -22,18 +22,18 @@ void TableLookup(void *key, void **base, void **bound){
   *bound = NULL;
   printf("Table Lookup: %p\n", key);
   for(int i=0; i<5; i++){
+    printf("%p: (%p, %p)\n", table[i][0], table[i][1], table[i][2]);
     if(table[i][0] == key){
       *base = table[i][1];
       *bound = table[i][2];
     }
-    printf("%p: (%p, %p)\n", table[i][0], table[i][1], table[i][2]);
   }
 }
 
 void TableAssign(void *key, void *base, void *bound){
   printf("Table Assign: %p\n", key);
-  printf("Lower Bound : %p\n", base);
-  printf("Upper Bound : %p\n", bound);
+  //printf("Lower Bound : %p\n", base);
+  //printf("Upper Bound : %p\n", bound);
   for(int i=0; i<5; i++){
     if(table[i][0] == NULL){
       table[i][0] = key;

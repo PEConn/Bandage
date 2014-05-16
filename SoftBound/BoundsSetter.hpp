@@ -18,7 +18,8 @@ private:
   void CollectStores(std::set<Function *> Functions);
   bool SetOnMalloc(IRBuilder<> &B, StoreInst *S, Value *&StoreToLower, Value *&StoreToUpper);
   bool SetOnConstString(IRBuilder<> &B, StoreInst *S, Value *&StoreToLower, Value *&StoreToUpper);
-  bool SetOnPointerEquals(IRBuilder<> &B, StoreInst *S, Value *&StoreToLower, Value *&StoreToUpper, LocalBounds *LB);
+  bool SetOnPointerEquals(IRBuilder<> &B, StoreInst *S, Value *&StoreToLower, Value *&StoreToUpper, LocalBounds *LB, HeapBounds *HB);
+  bool SetOnNull(IRBuilder<> &B, StoreInst *S, Value *&StoreInLower, Value *&StoreInUpper);
 };
 
 #endif

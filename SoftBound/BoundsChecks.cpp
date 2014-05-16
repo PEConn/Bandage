@@ -26,7 +26,8 @@ void BoundsChecks::CreateBoundsChecks(){
           CreateBoundsCheck(L, L->getPointerOperand());
       if(auto S = dyn_cast<StoreInst>(I))
         if(!isa<AllocaInst>(S->getPointerOperand()))
-          CreateBoundsCheck(S, S->getPointerOperand());
+          if(S->getPointerOperand()->getType()->getPointerElementType()->isPointerTy())
+            CreateBoundsCheck(S, S->getPointerOperand());
     }
   }
 }
@@ -57,6 +58,7 @@ void BoundsChecks::CreateBoundsCheck(Instruction *I, Value *PointerOperand){
         B.CreateLoad(UpperBound));
   } else {
     errs() << "Could not find bounds for :" << *PointerOperand << "\n";
+    errs() << "\tIn: " << *I << "\n";
   }
 }
 
@@ -91,7 +93,7 @@ void BoundsChecks::CreateBoundsCheckFunction(Module &M, Function *Print){
       "NullCheck", BoundsCheckFunc);
   IRBuilder<> B(NullCheckBB);
 
-  if(Print){
+  if(false && Print){
     B.CreateCall2(Print, Str(B, "Base:  %p"), Base);
     B.CreateCall2(Print, Str(B, "Value: %p"), Val);
     B.CreateCall2(Print, Str(B, "Bound: %p"), Bound);

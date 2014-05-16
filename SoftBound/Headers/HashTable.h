@@ -21,7 +21,7 @@ void TableLookup(void *key, void **base, void **bound){
   *base = NULL;
   *bound = NULL;
   TableEntry *TE = NULL;
-  printf("Search: %p\n", key);
+  //printf("Search: %p\n", key);
   HASH_FIND_INT(HashTable, &key, TE);
   if(TE){
     *base = TE->base;
@@ -35,7 +35,7 @@ void TableAssign(void *key, void *base, void *bound){
   TE->key = key;
   TE->base = base;
   TE->bound = bound;
-  printf("Assign: %p\n", key);
+  //printf("Assign: %p\n", key);
   // Todo, check if this is already declared
   HASH_REPLACE_INT(HashTable, key, TE, old);
   if(old != NULL)

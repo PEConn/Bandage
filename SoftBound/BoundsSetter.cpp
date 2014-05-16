@@ -33,7 +33,9 @@ void BoundsSetter::SetBounds(LocalBounds *LB, HeapBounds *HB){
       ;
     else if(SetOnConstString(B, S, ToStoreInLower, ToStoreInUpper))
       ;
-    else if(SetOnPointerEquals(B, S, ToStoreInLower, ToStoreInUpper, LB))
+    else if(SetOnNull(B, S, ToStoreInLower, ToStoreInUpper))
+      ;
+    else if(SetOnPointerEquals(B, S, ToStoreInLower, ToStoreInUpper, LB, HB))
       ;
 
     if(ToStoreInLower == NULL){
@@ -56,6 +58,14 @@ void BoundsSetter::SetBounds(LocalBounds *LB, HeapBounds *HB){
   }
 }
 
+bool BoundsSetter::SetOnNull(IRBuilder<> &B, StoreInst *S, Value *&StoreInLower, Value *&StoreInUpper){
+  Value *V = S->getValueOperand();
+  if(!isa<ConstantPointerNull>(V))
+    return false;
+  StoreInLower = S->getValueOperand();
+  StoreInUpper = S->getValueOperand();
+  return true;
+}
 bool BoundsSetter::SetOnMalloc(IRBuilder<> &B, StoreInst *S, Value *&StoreToLower, Value *&StoreToUpper){
   // Follow through the bitcast if there is one
   Value *V = S->getValueOperand();
@@ -103,15 +113,34 @@ bool BoundsSetter::SetOnConstString(IRBuilder<> &B, StoreInst *S, Value *&StoreT
   return true;
 }
 
-bool BoundsSetter::SetOnPointerEquals(IRBuilder<> &B, StoreInst *S, Value *&StoreToLower, Value *&StoreToUpper, LocalBounds *LB){
+bool BoundsSetter::SetOnPointerEquals(IRBuilder<> &B, StoreInst *S, Value *&StoreToLower, Value *&StoreToUpper, LocalBounds *LB, HeapBounds *HB){
   Value *V = S->getValueOperand();
   if(!V->getType()->isPointerTy()) return false;
-  if(!LB->HasBoundsFor(V)) return false;
+
   BasicBlock::iterator iter = S;
   iter++;
   B.SetInsertPoint(iter);
 
-  StoreToLower = B.CreateLoad(LB->GetLowerBound(V));
-  StoreToUpper = B.CreateLoad(LB->GetUpperBound(V));
+  if(LB->HasBoundsFor(V)){
+    StoreToLower = B.CreateLoad(LB->GetLowerBound(V));
+    StoreToUpper = B.CreateLoad(LB->GetUpperBound(V));
+  } else {
+    errs() << "Inserting Heap Lookup for:\t" << *S << "\n";
+    Type *PtrTy = Type::getInt8PtrTy(S->getContext());
+    Type *PtrPtrTy = PtrTy->getPointerTo();
+
+    Value *LowerBound = B.CreateAlloca(PtrTy);
+    Value *UpperBound = B.CreateAlloca(PtrTy);
+
+    HB->InsertTableLookup(B, 
+        B.CreatePointerCast(V, PtrTy), 
+        B.CreatePointerCast(LowerBound, PtrPtrTy), 
+        B.CreatePointerCast(UpperBound, PtrPtrTy));
+    StoreToLower = B.CreateLoad(B.CreatePointerCast(LowerBound, S->getPointerOperand()->getType()));
+    StoreToUpper = B.CreateLoad(B.CreatePointerCast(UpperBound, S->getPointerOperand()->getType()));
+    /*
+  } else if (LB->GetDef(PointerOperand) != NULL && isa<LoadInst>(LB->GetDef(PointerOperand))){
+       */
+  }
   return true;
 }
