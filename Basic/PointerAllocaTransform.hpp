@@ -10,10 +10,10 @@ using namespace llvm;
 
 class PointerAllocaTransform{
 public:
-  PointerAllocaTransform(std::set<Function *> Functions);
+  PointerAllocaTransform(std::set<Function *> Functions, Module &M);
   std::map<AllocaInst *, AllocaInst *> RawToFPMap;
 private:
-  void CollectAllocas(std::set<Function *> Functions);
+  void CollectAllocas(std::set<Function *> Functions, Module &M);
   void TransformAllocas();
 
   std::set<AllocaInst *> Allocas;

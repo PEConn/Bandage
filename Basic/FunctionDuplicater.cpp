@@ -39,12 +39,40 @@ FunctionDuplicater::FunctionDuplicater(Module &M, TypeDuplicater *TD, std::strin
     RawFunctions.insert(F);
   }
 
+  DuplicateGlobals(M);
   DuplicateFunctions(M, TD);
   RenameMain();
+}
+void FunctionDuplicater::DuplicateGlobals(Module &M){
+  std::set<GlobalVariable *> Globals;
+  for(auto i=M.global_begin(), e=M.global_end(); i!=e; ++i){
+    GlobalVariable *G = &*i;
+    Globals.insert(G);
+  }
+  for(auto G: Globals){
+    std::string name = G->getName();
+    if(name[0] == '_' && name[1] == '_')
+      continue;
+    
+    if(!G->getType()->isPointerTy())
+      continue;
+    Type *PointerTy = G->getType()->getPointerElementType();
+    if(!PointerTy->isPointerTy())
+      continue;
+    Type *FatPointerTy = FatPointers::GetFatPointerType(PointerTy);
+    GlobalVariable *NewG = new GlobalVariable(M, FatPointerTy, G->isConstant(), G->getLinkage(), NULL, G->getName());
+
+    ConstantAggregateZero* Init= ConstantAggregateZero::get(FatPointerTy);
+    NewG->setInitializer(Init);
+
+    VMap[G] = NewG;
+  }
 }
 
 void FunctionDuplicater::DuplicateFunctions(Module &M, TypeDuplicater *TD){
   for(auto F: RawFunctions){
+    //errs() << "Duplicating " << F->getName() << "\n";
+    //errs() << *F->getFunctionType() << "\n";
     // Construct a new parameter list with Fat Pointers instead of Pointers
     FunctionType *OldFuncType = F->getFunctionType();
 
@@ -65,6 +93,7 @@ void FunctionDuplicater::DuplicateFunctions(Module &M, TypeDuplicater *TD){
 
     // TODO: Copy over if the function type is VarArg
     FunctionType *NewFuncType = FunctionType::get(ReturnType, Params, F->isVarArg());
+    //errs() << *NewFuncType << "\n";
 
     //errs() << *OldFuncType << " -> " << *NewFuncType << "\n";
 

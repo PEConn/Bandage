@@ -37,6 +37,7 @@ void PointerUseTransform::Apply(){
 }
 
 void PointerUseTransform::PointerUseTransform::ApplyTo(PU *P){
+  //P->Print();
   RecreateValueChain(P->Chain);
 }
 void PointerUseTransform::ApplyTo(PointerParameter *PP){
@@ -89,6 +90,20 @@ void PointerUseTransform::RecreateValueChain(std::vector<Value *> Chain){
       Chain[i] = Replacements[Chain[i]];
   }
   //errs() << "---\n";
+
+  // If we store a global in a local, the load of the global needs to 
+  // be recreated to get the typing correct
+  if(auto S = dyn_cast<StoreInst>(Chain.back())){
+    if(auto L = dyn_cast<LoadInst>(S->getValueOperand())){
+      if(false){
+        IRBuilder<> B(L);
+        Value *NewLoad = B.CreateLoad(L->getPointerOperand());
+        Replacements[L] = NewLoad;
+        L->replaceAllUsesWith(NewLoad);
+        L->eraseFromParent();
+      }
+    }
+  }
 
   // If the chain starts with a malloc instruction, calculate the base and bounds
   // for the future fat pointer
@@ -170,10 +185,6 @@ void PointerUseTransform::RecreateValueChain(std::vector<Value *> Chain){
   if(auto S = dyn_cast<StoreInst>(Chain.back())){
     if(auto C = dyn_cast<ConstantPointerNull>(S->getValueOperand())){
       Type *PointerElementType = S->getPointerOperand()->getType()->getPointerElementType();
-      /*errs() << "----------\n";
-      for(auto L: Chain)
-        errs() << *L << "\n";
-        */
       IRBuilder<> B(S);
       if(FatPointers::IsFatPointerType(PointerElementType)){
         // Make a null of the correct type
@@ -207,7 +218,6 @@ void PointerUseTransform::RecreateValueChain(std::vector<Value *> Chain){
 
       }
 
-      //errs() << "----------\n";
     }
   }
 
@@ -245,7 +255,6 @@ void PointerUseTransform::RecreateValueChain(std::vector<Value *> Chain){
   int PointerLevel = 0;
 
   for(int i=0; i<Chain.size(); i++){
-    //errs() << *Chain[i] << "\n";
     Value *CurrentLink = Chain[i];
     if(auto I = dyn_cast<Instruction>(CurrentLink))
       if(I->getParent() == NULL)
@@ -254,7 +263,6 @@ void PointerUseTransform::RecreateValueChain(std::vector<Value *> Chain){
     if(auto L = dyn_cast<LoadInst>(CurrentLink)){
       IRBuilder<> B(L);
       Value *Addr = L->getPointerOperand();
-      //errs() << *L << "\n";
       if(FatPointers::IsFatPointerType(Addr->getType()->getPointerElementType())){
         if((i == Chain.size() - 2) && ExpectedFatPointer){
           // Recreate the load for typing
@@ -262,6 +270,7 @@ void PointerUseTransform::RecreateValueChain(std::vector<Value *> Chain){
           L->replaceAllUsesWith(Replacements[L]);
           L->eraseFromParent();
         } else {
+
           // Load the value from the fat pointer
           // Remember the most recent fat pointer so we can carry over bounds on
           // GEP or Cast
@@ -280,11 +289,11 @@ void PointerUseTransform::RecreateValueChain(std::vector<Value *> Chain){
             iter++;
             IRBuilder<> AfterGep(iter);
 
-            if(G->getType() == PrevBase->getType()){
-              NoneSafeLoads++;
-              FatPointers::CreateBoundsCheck(AfterGep, G, PrevBase, PrevBound, Print, M);
-            }
-          } else if(isa<CmpInst>(Next)){
+            NoneSafeLoads++;
+            FatPointers::CreateBoundsCheck(AfterGep, 
+                AfterGep.CreatePointerCast(G, PrevBase->getType()), 
+                PrevBase, PrevBound, Print, M);
+          } else if(false && isa<CmpInst>(Next)){
             // If we have a compare next, don't bother bounds checking
             // eg. for the case of "if(t == NULL)"
           } else {
@@ -329,10 +338,6 @@ void PointerUseTransform::RecreateValueChain(std::vector<Value *> Chain){
           Value *Size = GetSizeValue(Array, B);
           SetFatPointerBaseAndBound(FP, NewGep, Size, B);
         } else {
-          errs() << "----------\n";
-          for(auto L: Chain)
-            errs() << *L << "\n";
-          errs() << "----------\n";
           assert(false && "GEP without previous fat pointer to non-array");
         }
         G->replaceAllUsesWith(B.CreateLoad(FP));

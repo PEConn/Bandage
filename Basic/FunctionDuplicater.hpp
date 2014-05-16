@@ -23,6 +23,7 @@ public:
   ValueToValueMapTy VMap;
 private:
   void DuplicateFunctions(Module &M, TypeDuplicater *TD);
+  void DuplicateGlobals(Module &M);
   void RenameMain();
 
   Function *Main;

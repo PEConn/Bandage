@@ -7,11 +7,11 @@
 #include "FatPointers.hpp"
 
 
-PointerAllocaTransform::PointerAllocaTransform(std::set<Function *> Functions){
-  CollectAllocas(Functions);
+PointerAllocaTransform::PointerAllocaTransform(std::set<Function *> Functions, Module &M){
+  CollectAllocas(Functions, M);
   TransformAllocas();
 }
-void PointerAllocaTransform::CollectAllocas(std::set<Function *> Functions){
+void PointerAllocaTransform::CollectAllocas(std::set<Function *> Functions, Module &M){
   for(auto F: Functions){
     //errs() << "Transforming Allocas in " << F->getName() << "\n";
     for(auto II = inst_begin(F), EI = inst_end(F); II != EI; ++II){

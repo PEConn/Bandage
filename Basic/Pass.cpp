@@ -92,7 +92,7 @@ struct Bandage : public ModulePass{
     errs() << "Collecting Pointer Uses\n";
     auto *PUC = new PointerUseCollection(FD, M);
     errs() << "Transforming Pointer Allocations\n";
-    auto *PAT = new PointerAllocaTransform(FD->GetFPFunctions());
+    auto *PAT = new PointerAllocaTransform(FD->GetFPFunctions(), M);
     errs() << "Transform Pointer Uses\n";
     errs() << "  Checks Inlined: " << FatPointers::Inline << "\n";
     auto *T = new PointerUseTransform(PUC, M, FD->RawToFPMap, PAT->RawToFPMap);
@@ -104,7 +104,7 @@ struct Bandage : public ModulePass{
     T->Apply();
     errs() << "  Stats:\n";
     errs() << "    Safe Loads:    " << T->SafeLoads << "\n";
-    errs() << "    Checked Loads: " << T->SafeLoads << "\n";
+    errs() << "    Checked Loads: " << T->NoneSafeLoads << "\n";
     errs() << "-------------------------------" << "\n";
 
     auto AAT = new ArrayAccessTransform(FD->GetFPFunctions(), OnError);

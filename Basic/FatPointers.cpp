@@ -61,8 +61,6 @@ StructType* FatPointers::GetFatPointerType(Type *PointerType){
   StructType *FatPointerType = StructType::create(FatPointerMembers, Name);
 
   FatPointers::FatPointerTypes[OriginalPointerType] = FatPointerType;
-  errs() << "Created: " <<  *FatPointerType << "\n";
-  errs() << "From: " << *OriginalPointerType << "\n";
   return FatPointerType;
 }
 
