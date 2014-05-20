@@ -5,11 +5,41 @@
 #include "llvm/Support/InstIterator.h"
 #include "llvm/Support/raw_ostream.h"
 
-LocalBounds::LocalBounds(FunctionDuplicater *FD){
-  CreateBounds(FD);
+LocalBounds::LocalBounds(Module &M, FunctionDuplicater *FD){
+  CreateBounds(M, FD);
 }
 
-void LocalBounds::CreateBounds(FunctionDuplicater *FD){
+void LocalBounds::CreateBounds(Module &M, FunctionDuplicater *FD){
+  // Duplicate Globals
+  std::set<GlobalVariable *> Globals;
+  for(auto i=M.global_begin(), e=M.global_end(); i!=e; ++i){
+    GlobalVariable *G = &*i;
+    Globals.insert(G);
+  }
+  for(auto G: Globals){
+    std::string name = G->getName();
+    if(name[0] == '_' && name[1] == '_')
+      continue;
+    
+    if(!G->getType()->isPointerTy())
+      continue;
+    Type *PointerTy = G->getType()->getPointerElementType();
+    if(!PointerTy->isPointerTy())
+      continue;
+
+    GlobalVariable *LB = new GlobalVariable(M, PointerTy, 
+        G->isConstant(), G->getLinkage(), NULL, G->getName() + "_lower");
+    GlobalVariable *UB = new GlobalVariable(M, PointerTy,
+        G->isConstant(), G->getLinkage(), NULL, G->getName() + "_upper");
+
+    ConstantAggregateZero* Init= ConstantAggregateZero::get(PointerTy);
+    LB->setInitializer(Init);
+    UB->setInitializer(Init);
+
+    LowerBounds[G] = LB;
+    UpperBounds[G] = UB;
+  }
+
   for(auto F: FD->FPFunctions){
     for(auto II = inst_begin(F), EI = inst_end(F); II != EI; ++II){
       Instruction *I = &*II;
@@ -70,7 +100,7 @@ void LocalBounds::CreateBound(CallInst *C){
 Value *LocalBounds::GetDef(Value *V, bool IgnoreOneLoad){
   bool OneLoad = IgnoreOneLoad;
   while(true){
-    if(isa<CallInst>(V) || isa<AllocaInst>(V))
+    if(isa<CallInst>(V) || isa<AllocaInst>(V) || isa<GlobalVariable>(V))
       break;
     else if(auto G = dyn_cast<GetElementPtrInst>(V))
       V = G->getPointerOperand();

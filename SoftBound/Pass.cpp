@@ -35,7 +35,7 @@ struct SoftBound : public ModulePass{
   virtual bool runOnModule(Module &M) {
     auto FD = new FunctionDuplicater(M, FuncFile);
     auto BS = new BoundsSetter(FD->FPFunctions);
-    auto LB = new LocalBounds(FD);
+    auto LB = new LocalBounds(M, FD);
     auto HB = new HeapBounds(M);
     auto BC = new BoundsChecks(LB, HB, FD);
     BC->CreateBoundsCheckFunction(M, M.getFunction("printf"));

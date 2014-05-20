@@ -8,7 +8,7 @@ using namespace llvm;
 
 class LocalBounds{
 public:
-  LocalBounds(FunctionDuplicater *FD);
+  LocalBounds(Module &M, FunctionDuplicater *FD);
   Value *GetLowerBound(Value *V, bool IgnoreOneLoad = true);
   Value *GetUpperBound(Value *V, bool IgnoreOneLoad = true);
   bool HasBoundsFor(Value *V, bool IgnoreOneLoad = true);
@@ -17,7 +17,7 @@ public:
 private:
   std::map<Value *, Value *> LowerBounds;
   std::map<Value *, Value *> UpperBounds;
-  void CreateBounds(FunctionDuplicater *FD);
+  void CreateBounds(Module &M, FunctionDuplicater *FD);
   void CreateBound(AllocaInst *A);
   void CreateBound(CallInst *C);
 };
