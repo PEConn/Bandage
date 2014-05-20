@@ -2,6 +2,7 @@
 #include "FunctionDuplicater.hpp"
 #include "llvm/IR/Instructions.h"
 #include "llvm/Transforms/Utils/Cloning.h"
+#include "llvm/Support/raw_ostream.h"
 
 FunctionDuplicater::FunctionDuplicater(Module &M, std::string FuncFile){
   Main = NULL;
@@ -20,13 +21,6 @@ FunctionDuplicater::FunctionDuplicater(Module &M, std::string FuncFile){
   for(auto i = M.begin(), e = M.end(); i != e; ++i){
     Function *F = &*i;
     if(F->empty() && !IntDecls.count(F->getName()))
-      continue;
-
-    // Horrible hack to avoid modifying heap bounds lookup functions
-    if(F->getName() == "TableSetup"
-        || F->getName() == "TableTeardown"
-        || F->getName() == "TableLookup"
-        || F->getName() == "TableAssign")
       continue;
 
     if(F->getName() == "main")
