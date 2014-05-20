@@ -23,10 +23,17 @@ void HashDelete(unsigned int key,Hash hash)
   int j;
 
   j = (hash->mapfunc)(key);
+  // This bit had to be modified
   ent = &(hash->array[j]);
+  while((*ent)->key!=key){
+    HashEntry temp = *ent;
+    HashEntry temp2 = temp->next;
+    ent = &temp2;
+  }
   if((*ent)->key!=key)
     printf("");
-  ent=&((*ent)->next);
+  //ent=&((*ent)->next);
+  //ent = &temp->next;
 
   /*
      for (ent=&(hash->array[j]);

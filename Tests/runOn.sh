@@ -12,8 +12,9 @@ echo -en "\033[0m"
 # -bandage-no-ccured
 # -bandage-no-inline
 #${opt_bandage} -S -p -bandage ${1%.c}.bc > ${1%.c}_ban.bc
-#${opt_bandage} -S -bandage ${1%.c}.bc > ${1%.c}_ban.bc
-${opt_softbound} -S -p -softbound ${1%.c}.bc > ${1%.c}_ban.bc
+${opt_bandage} -S -bandage ${1%.c}.bc > ${1%.c}_ban.bc
+#${opt_softbound} -S -softbound ${1%.c}.bc > ${1%.c}_ban.bc
+#${opt_softbound} -S -p -softbound ${1%.c}.bc > ${1%.c}_ban.bc
 echo -en "\033[33m"
 llc ${1%.c}_ban.bc -o ${1%.c}_ban.s
 clang ${1%.c}_ban.s -o ${1%.c} 
