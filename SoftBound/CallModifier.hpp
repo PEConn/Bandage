@@ -3,14 +3,16 @@
 
 #include "FunctionDuplicater.hpp"
 #include "LocalBounds.hpp"
+#include "HeapBounds.hpp"
 
 class CallModifier{
 public:
-  CallModifier(FunctionDuplicater *FD, LocalBounds *LB);
+  CallModifier(FunctionDuplicater *FD, LocalBounds *LB, HeapBounds *HB);
   ~CallModifier();
 private:
   FunctionDuplicater *FD;
   LocalBounds *LB;
+  HeapBounds *HB;
   PointerReturn *PR;
 
   void ModifyCalls();

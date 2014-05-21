@@ -29,6 +29,7 @@ void BoundsSetter::SetBounds(LocalBounds *LB, HeapBounds *HB){
     Value *ToStoreInUpper = NULL;
     IRBuilder<> B(S);
 
+    errs() << "Bound Set\n";
     if(SetOnMalloc(B, S, ToStoreInLower, ToStoreInUpper))
       ;
     else if(SetOnConstString(B, S, ToStoreInLower, ToStoreInUpper))
@@ -49,7 +50,16 @@ void BoundsSetter::SetBounds(LocalBounds *LB, HeapBounds *HB){
       Value *Upper = LB->GetUpperBound(Pointer, false);
       B.CreateStore(ToStoreInUpper, Upper);
     } else {
-      B.SetInsertPoint(S);
+      /*
+      BasicBlock::iterator iter(S);
+      S++;
+        BasicBlock::iterator it(inst);
+          ++it; // After this line, it refers to the instruction after *inst
+            if (it != inst->getParent()->end()) errs() << *it << "\n";
+            */
+
+      //B.SetInsertPoint(S);
+      
       HB->InsertTableAssign(B, 
           B.CreatePointerCast(S->getValueOperand(), PtrTy), 
           B.CreatePointerCast(ToStoreInLower, PtrTy), 

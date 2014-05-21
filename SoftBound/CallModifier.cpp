@@ -2,9 +2,10 @@
 #include "llvm/Support/InstIterator.h"
 #include "llvm/Support/raw_ostream.h"
 
-CallModifier::CallModifier(FunctionDuplicater *FD, LocalBounds *LB){
+CallModifier::CallModifier(FunctionDuplicater *FD, LocalBounds *LB, HeapBounds *HB){
   this->FD = FD;
   this->LB = LB;
+  this->HB = HB;
   this->PR = new PointerReturn();
   ModifyCalls();
 }
@@ -38,6 +39,7 @@ void CallModifier::ModifyCall(CallInst *C){
   if(!FD->RawToFPMap.count(OrigFunc))
     return;
 
+    errs() << __LINE__ << "\n";
   IRBuilder<> B(C);
   // Add bounds parameters
   std::vector<Value *> Params;
@@ -45,28 +47,53 @@ void CallModifier::ModifyCall(CallInst *C){
     Value *Param = C->getArgOperand(i);
     Params.push_back(Param);
     if(Param->getType()->isPointerTy()){
-      Params.push_back(B.CreateLoad(LB->GetLowerBound(Param)));
-      Params.push_back(B.CreateLoad(LB->GetUpperBound(Param)));
+      if(LB->HasBoundsFor(Param)){
+        Params.push_back(B.CreateLoad(LB->GetLowerBound(Param)));
+        Params.push_back(B.CreateLoad(LB->GetUpperBound(Param)));
+      } else {
+        Type *PtrTy = Type::getInt8PtrTy(Param->getContext());
+        Type *PtrPtrTy = PtrTy->getPointerTo();
+
+        Value *LowerBound = B.CreateAlloca(Param->getType());
+        Value *UpperBound = B.CreateAlloca(Param->getType());
+
+        HB->InsertTableLookup(B, 
+            B.CreatePointerCast(Param, PtrTy), 
+            B.CreatePointerCast(LowerBound, PtrPtrTy), 
+            B.CreatePointerCast(UpperBound, PtrPtrTy));
+
+        Params.push_back(B.CreateLoad(LowerBound));
+        Params.push_back(B.CreateLoad(UpperBound));
+      }
     } 
   }
+    errs() << __LINE__ << "\n";
 
   // Replace with a new call instruction
   Function *NewFunc = FD->RawToFPMap[OrigFunc];
   CallInst *NewCall = CallInst::Create(NewFunc, Params, "", C);
+    errs() << __LINE__ << "\n";
 
   if(NewFunc->getReturnType()->isVoidTy()){
     C->replaceAllUsesWith(NewCall);
     C->eraseFromParent();
     return;
   }
-  Value *LowerBound = LB->GetLowerBound(C);
-  Value *UpperBound = LB->GetUpperBound(C);
+    errs() << __LINE__ << "\n";
+
+  Value *LowerBound, *UpperBound;
+  if(OrigFunc->getReturnType()->isPointerTy()){
+    LowerBound = LB->GetLowerBound(C);
+    UpperBound = LB->GetUpperBound(C);
+  }
+    errs() << __LINE__ << "\n";
 
   C->replaceAllUsesWith(NewCall);
   C->eraseFromParent();
+    errs() << __LINE__ << "\n";
 
   // Unwrap return value if nessecary
-  if(OrigFunc->getType()->isPointerTy()){
+  if(OrigFunc->getReturnType()->isPointerTy()){
     BasicBlock::iterator iter = NewCall;
     iter++;
     IRBuilder<> B(iter);
@@ -82,6 +109,7 @@ void CallModifier::ModifyCall(CallInst *C){
     Dummy->replaceAllUsesWith(B.CreateLoad(NewReturn));
     Dummy->eraseFromParent();
   }
+    errs() << __LINE__ << "\n";
 }
 void CallModifier::WrapReturn(ReturnInst *R){
   // This will only be called inside a SoftBound modified function

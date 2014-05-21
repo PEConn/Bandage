@@ -136,8 +136,8 @@ bool TypeDuplicater::NeedsFPType(StructType *ST){
 void TypeDuplicater::DisplayFPTypes(DataLayout *DL){
   errs() << "----------FPTypes----------\n";
   for(auto T: FPStructs){
-    //errs() << DL->getTypeAllocSizeInBits(T)/8 << "B: " << *T << "\n";
-    errs() << *T << "\n";
+    errs() << DL->getTypeAllocSizeInBits(T)/8 << "B: " << *T << "\n";
+    //errs() << *T << "\n";
   }
   errs() << "---------------------------\n";
 }

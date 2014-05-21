@@ -40,6 +40,10 @@ void LocalBounds::CreateBounds(Module &M, FunctionDuplicater *FD){
     UpperBounds[G] = UB;
   }
 
+  errs() << "Globals found\n";
+  for(auto Pair: LowerBounds)
+    errs() << *Pair.first << "\n";
+
   for(auto F: FD->FPFunctions){
     for(auto II = inst_begin(F), EI = inst_end(F); II != EI; ++II){
       Instruction *I = &*II;

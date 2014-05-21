@@ -22,7 +22,9 @@ void BoundsChecks::CreateBoundsChecks(){
     for(auto II = inst_begin(F), EI = inst_end(F); II != EI; ++II){
       Instruction *I = &*II;
       if(auto L = dyn_cast<LoadInst>(I))
-        if(!isa<AllocaInst>(L->getPointerOperand()))
+        if(!isa<AllocaInst>(L->getPointerOperand()) &&
+            !isa<CallInst>(L->getPointerOperand()) &&
+            !isa<GlobalVariable>(L->getPointerOperand()))
           CreateBoundsCheck(L, L->getPointerOperand());
       if(auto S = dyn_cast<StoreInst>(I))
         if(!isa<AllocaInst>(S->getPointerOperand()))
@@ -33,6 +35,8 @@ void BoundsChecks::CreateBoundsChecks(){
 }
 
 void BoundsChecks::CreateBoundsCheck(Instruction *I, Value *PointerOperand){
+  errs() << "Bound Check\n";
+
   Type *PtrTy = Type::getInt8PtrTy(I->getContext());
   Type *PtrPtrTy = PtrTy->getPointerTo();
   if(LB->HasBoundsFor(PointerOperand)){
@@ -41,7 +45,9 @@ void BoundsChecks::CreateBoundsCheck(Instruction *I, Value *PointerOperand){
         B.CreatePointerCast(PointerOperand, PtrTy), 
         B.CreatePointerCast(B.CreateLoad(LB->GetLowerBound(PointerOperand)), PtrTy),
         B.CreatePointerCast(B.CreateLoad(LB->GetUpperBound(PointerOperand)), PtrTy));
-  } else if (LB->GetDef(PointerOperand) != NULL && isa<LoadInst>(LB->GetDef(PointerOperand))){
+  } else if (LB->GetDef(PointerOperand) != NULL
+      // && isa<LoadInst>(LB->GetDef(PointerOperand)) why was this here?
+      ){
     errs() << "Heap Bounds: " << *I << "\n";
     IRBuilder<> B(I);
     Value *LowerBound = B.CreateAlloca(PtrTy);
@@ -75,7 +81,7 @@ void BoundsChecks::CreateBoundsCheckFunction(Module &M, Function *Print){
   FunctionType *FuncType = FunctionType::get(VoidTy, ParamTypes, false);
 
   Function *BoundsCheckFunc = Function::Create(FuncType,
-      GlobalValue::LinkageTypes::ExternalLinkage, "BoundsCheck", &M);
+      GlobalValue::LinkageTypes::InternalLinkage, "BoundsCheck", &M);
 
   // BoundsCheckFunc->addFnAttr(Attribute::AlwaysInline);
     

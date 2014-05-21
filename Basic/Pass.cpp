@@ -53,12 +53,11 @@ struct Bandage : public ModulePass{
     errs() << "Duplicating Functions\n";
     auto *FD = new FunctionDuplicater(M, TD, FuncFile);
     errs() << "Has main: " << FatPointers::Declare << "\n";
-    Function *OnError;
+    Function *OnError = CreatePrintFunction(M);
     if(FatPointers::Declare){
       // Force creation of the bounds check function
       Type *T = Type::getInt8PtrTy(M.getContext());
       FatPointers::CreateBoundsCheckFunction(T, M.getFunction("printf"), &M);
-      OnError = CreatePrintFunction(M);
 
       // If main takes argv**, put it into a fat pointer
       /*
@@ -85,9 +84,6 @@ struct Bandage : public ModulePass{
       }
       */
 
-    } else {
-      auto FT = FunctionType::get(Type::getVoidTy(M.getContext()), false);
-      OnError = Function::Create(FT, GlobalValue::LinkageTypes::ExternalLinkage, "OnError", &M);
     }
     errs() << "Collecting Pointer Uses\n";
     auto *PUC = new PointerUseCollection(FD, M);

@@ -40,7 +40,7 @@ struct SoftBound : public ModulePass{
     auto BC = new BoundsChecks(LB, HB, FD);
     BC->CreateBoundsCheckFunction(M, M.getFunction("printf"));
     BC->CreateBoundsChecks();
-    auto CM = new CallModifier(FD, LB);
+    auto CM = new CallModifier(FD, LB, HB);
 
     BS->SetBounds(LB, HB);
 
