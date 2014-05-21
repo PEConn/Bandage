@@ -293,22 +293,19 @@ void PointerUseTransform::RecreateValueChain(std::vector<Value *> Chain){
             iter++;
             IRBuilder<> AfterGep(iter);
 
-            errs() << __LINE__ << "\n";
             NoneSafeLoads++;
             FatPointers::CreateBoundsCheck(AfterGep, 
                 AfterGep.CreatePointerCast(G, PrevBase->getType()), 
                 PrevBase, PrevBound, Print, M);
-          } else if(false && isa<CmpInst>(Next)){
+          } else if(isa<CmpInst>(Next)){
             // If we have a compare next, don't bother bounds checking
             // eg. for the case of "if(t == NULL)"
           } else if(!CheckedGEPs.count(Chain[i-1])){
             if(this->Qualifiers[Pointer(PointerId, PointerLevel)] == SAFE){
-            errs() << __LINE__ << "\n";
               SafeLoads++;
               FatPointers::CreateNullCheck(B, LoadFatPointerValue(Addr, B), Print, M);
             } else {
               NoneSafeLoads++;
-            errs() << __LINE__ << "\n";
               FatPointers::CreateBoundsCheck(B, LoadFatPointerValue(Addr, B),
                   PrevBase, PrevBound, Print, M);
             }
