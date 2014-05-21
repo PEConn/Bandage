@@ -8,12 +8,12 @@ PointerUseCollection::PointerUseCollection(FunctionDuplicater *FD, Module &M){
 }
 void PointerUseCollection::CollectInstructions(std::set<Function *> Functions, Module &M){
   std::vector<PointerUse *> PotentialUses;
-  /*for(auto i=M.global_begin(), e=M.global_end(); i!=e; ++i){
+  for(auto i=M.global_begin(), e=M.global_end(); i!=e; ++i){
     GlobalVariable *G = &*i;
     for(auto i = G->use_begin(), e = G->use_end(); i != e; ++i){
       PointerUses.insert(new PU(*i, G));
     }
-  }*/
+  }
 
   for(auto F: Functions){
     for(auto II = inst_begin(F), EI = inst_end(F); II != EI; ++II){

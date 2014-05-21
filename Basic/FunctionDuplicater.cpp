@@ -39,11 +39,11 @@ FunctionDuplicater::FunctionDuplicater(Module &M, TypeDuplicater *TD, std::strin
     RawFunctions.insert(F);
   }
 
-  DuplicateGlobals(M);
+  DuplicateGlobals(M, TD);
   DuplicateFunctions(M, TD);
   RenameMain();
 }
-void FunctionDuplicater::DuplicateGlobals(Module &M){
+void FunctionDuplicater::DuplicateGlobals(Module &M, TypeDuplicater *TD){
   std::set<GlobalVariable *> Globals;
   for(auto i=M.global_begin(), e=M.global_end(); i!=e; ++i){
     GlobalVariable *G = &*i;
@@ -59,7 +59,8 @@ void FunctionDuplicater::DuplicateGlobals(Module &M){
     Type *PointerTy = G->getType()->getPointerElementType();
     if(!PointerTy->isPointerTy())
       continue;
-    Type *FatPointerTy = FatPointers::GetFatPointerType(PointerTy);
+    //Type *FatPointerTy = FatPointers::GetFatPointerType(PointerTy);
+    Type *FatPointerTy = FatPointers::GetFatPointerType(TD->remapType(PointerTy));
     GlobalVariable *NewG = new GlobalVariable(M, FatPointerTy, G->isConstant(), G->getLinkage(), NULL, G->getName());
 
     ConstantAggregateZero* Init= ConstantAggregateZero::get(FatPointerTy);
