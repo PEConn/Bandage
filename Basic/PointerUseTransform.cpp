@@ -85,6 +85,8 @@ void PointerUseTransform::RecreateValueChain(std::vector<Value *> Chain){
   Value *PrevBase = NULL;
   Value *PrevBound = NULL;
 
+  std::set<Value *> CheckedGEPs;
+
   for(int i=0; i<Chain.size(); i++){
     if(Replacements.count(Chain[i]))
       Chain[i] = Replacements[Chain[i]];
@@ -281,14 +283,17 @@ void PointerUseTransform::RecreateValueChain(std::vector<Value *> Chain){
           if(Replacements.count(Next))
             Next = Replacements[Next];
 
+          // Determine whether this is the last load
           // If we have a GEP next, delay the bounds checking until after it
           if(isa<GetElementPtrInst>(Next)
               && (i != Chain.size() - 3 || !ExpectedFatPointer)){
+            CheckedGEPs.insert(Next);
             auto G = dyn_cast<GetElementPtrInst>(Next);
             BasicBlock::iterator iter = G;
             iter++;
             IRBuilder<> AfterGep(iter);
 
+            errs() << __LINE__ << "\n";
             NoneSafeLoads++;
             FatPointers::CreateBoundsCheck(AfterGep, 
                 AfterGep.CreatePointerCast(G, PrevBase->getType()), 
@@ -296,12 +301,14 @@ void PointerUseTransform::RecreateValueChain(std::vector<Value *> Chain){
           } else if(false && isa<CmpInst>(Next)){
             // If we have a compare next, don't bother bounds checking
             // eg. for the case of "if(t == NULL)"
-          } else {
+          } else if(!CheckedGEPs.count(Chain[i-1])){
             if(this->Qualifiers[Pointer(PointerId, PointerLevel)] == SAFE){
+            errs() << __LINE__ << "\n";
               SafeLoads++;
               FatPointers::CreateNullCheck(B, LoadFatPointerValue(Addr, B), Print, M);
             } else {
               NoneSafeLoads++;
+            errs() << __LINE__ << "\n";
               FatPointers::CreateBoundsCheck(B, LoadFatPointerValue(Addr, B),
                   PrevBase, PrevBound, Print, M);
             }

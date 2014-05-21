@@ -1,6 +1,7 @@
 #include "FatPointers.hpp"
 #include "Helpers.hpp"
 #include <string>
+#include "llvm/IR/Module.h"
 #include "llvm/IR/Function.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -72,6 +73,10 @@ bool FatPointers::IsFatPointerType(Type *T){
 }
 
 void FatPointers::CreateBoundsCheck(IRBuilder<> &B, Value *Val, Value *Base, Value *Bound, Function *Print, Module *M){
+  Type *VoidPtr = Type::getInt8PtrTy(M->getContext());
+  Val = B.CreatePointerCast(Val, VoidPtr);
+  Base = B.CreatePointerCast(Base, VoidPtr);
+  Bound = B.CreatePointerCast(Bound, VoidPtr);
   if(BoundsChecks.count(Val->getType()) == 0)
     CreateBoundsCheckFunction(Val->getType(), Print, M);
 
