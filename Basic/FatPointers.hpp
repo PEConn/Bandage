@@ -12,7 +12,6 @@ using namespace llvm;
 class FatPointers{
 public:
   static bool Inline;
-  static bool Declare;
   static Value* CreateFatPointer(Type *PointerType, IRBuilder<> &B, std::string Name="");
   static ConstantPointerNull* GetFieldNull(Value *FatPointer);
   static StructType* GetFatPointerType(Type *PointerType);

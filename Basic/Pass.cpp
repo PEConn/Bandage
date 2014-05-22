@@ -43,7 +43,6 @@ struct Bandage : public ModulePass{
 
   virtual bool runOnModule(Module &M) {
     FatPointers::Inline = !DontInlineChecks;
-    FatPointers::Declare = (M.getFunction("main") != NULL);
 
     errs() << "-------------------------------" << "\n";
     errs() << "Fat Pointer Transformation Pass" << "\n";
@@ -52,12 +51,11 @@ struct Bandage : public ModulePass{
     auto *TD = new TypeDuplicater(M, &getAnalysis<FindUsedTypes>(), FuncFile);
     errs() << "Duplicating Functions\n";
     auto *FD = new FunctionDuplicater(M, TD, FuncFile);
-    errs() << "Has main: " << FatPointers::Declare << "\n";
     Function *OnError = CreatePrintFunction(M);
-    if(FatPointers::Declare){
+    //if(FatPointers::Declare){
       // Force creation of the bounds check function
-      Type *T = Type::getInt8PtrTy(M.getContext());
-      FatPointers::CreateBoundsCheckFunction(T, M.getFunction("printf"), &M);
+      //Type *T = Type::getInt8PtrTy(M.getContext());
+      //FatPointers::CreateBoundsCheckFunction(T, M.getFunction("printf"), &M);
 
       // If main takes argv**, put it into a fat pointer
       /*
@@ -84,7 +82,7 @@ struct Bandage : public ModulePass{
       }
       */
 
-    }
+    //}
     errs() << "Collecting Pointer Uses\n";
     auto *PUC = new PointerUseCollection(FD, M);
     errs() << "Transforming Pointer Allocations\n";
